@@ -1,5 +1,6 @@
 package com.example.lms2.ui.screen.student
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -464,6 +465,17 @@ private fun PendingTransferSection(
     externalPaymentUrl: String,
     onOpenExternalPayment: () -> Unit
 ) {
+    val qrDisplayUrl = remember(order.qrCodeUrl) {
+        val raw = order.qrCodeUrl.trim()
+        if (raw.isBlank()) {
+            ""
+        } else if (raw.startsWith("http://") || raw.startsWith("https://")) {
+            raw
+        } else {
+            "https://api.qrserver.com/v1/create-qr-code/?size=700x700&data=${Uri.encode(raw)}"
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -494,9 +506,9 @@ private fun PendingTransferSection(
                 )
             }
 
-            if (order.qrCodeUrl.isNotBlank()) {
+            if (qrDisplayUrl.isNotBlank()) {
                 AsyncImage(
-                    model = order.qrCodeUrl,
+                    model = qrDisplayUrl,
                     contentDescription = "QR thanh toán",
                     modifier = Modifier
                         .fillMaxWidth()

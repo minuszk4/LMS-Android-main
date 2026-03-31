@@ -31,7 +31,6 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const DEFAULT_IPN_FIELDS = [
-  "accessKey",
   "amount",
   "extraData",
   "message",
