@@ -199,7 +199,8 @@ async function createMomoPayment(payload) {
   });
   const extraData = Buffer.from(extraDataRaw, "utf8").toString("base64");
   const orderInfo = String(payload.orderInfo || `Thanh toan don hang ${orderId}`).trim();
-  const requestType = String(payload.requestType || "payWithMethod").trim();
+  const defaultRequestType = String(process.env.MOMO_REQUEST_TYPE || "captureWallet").trim();
+  const requestType = String(payload.requestType || defaultRequestType).trim();
 
   const signaturePayload = {
     accessKey,
