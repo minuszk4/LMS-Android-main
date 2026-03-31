@@ -1,0 +1,21 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+/build
+/captures
+.externalNativeBuild
+.cxx
+google-services.json
+
+# Phím ký App (Keystores) - Rất quan trọng để bảo mật
+*.jks
+*.keystore
+*.google_play_keys
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
