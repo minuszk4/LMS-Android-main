@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.lms"
+    namespace = "com.example.lms2"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.lms"
+        applicationId = "com.example.lms2"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -33,6 +33,7 @@ android {
         val geminiApiKey = properties.getProperty("GEMINI_API_KEY") ?: ""
         val openrouterApiKey = properties.getProperty("OPENROUTER_API_KEY") ?: ""
         val momoFunctionBaseUrl = properties.getProperty("MOMO_FUNCTION_BASE_URL") ?: ""
+        val adminUid = properties.getProperty("ADMIN_UID") ?: ""
         
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"$cloudName\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"$uploadPreset\"")
@@ -42,6 +43,7 @@ android {
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openrouterApiKey\"")
         buildConfigField("String", "MOMO_FUNCTION_BASE_URL", "\"$momoFunctionBaseUrl\"")
+        buildConfigField("String", "ADMIN_UID", "\"$adminUid\"")
     }
 
     packaging {
