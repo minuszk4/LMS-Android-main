@@ -7,6 +7,7 @@ import com.example.lms2.data.model.NotificationType
 import com.example.lms2.data.paging.PageRequest
 import com.example.lms2.data.paging.PageResult
 import com.example.lms2.util.ResultState
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
@@ -107,32 +108,40 @@ class CourseRepository {
 
     suspend fun deleteCourse(courseId: String): ResultState<Unit> {
         return try {
-            val batch = firestore.batch()
+            val refsToDelete = mutableListOf<DocumentReference>()
 
-            batch.delete(coursesCollection.document(courseId))
+            refsToDelete += coursesCollection.document(courseId)
 
             val lessonsSnapshot = lessonsCollection.whereEqualTo("courseId", courseId).get().await()
-            lessonsSnapshot.documents.forEach { batch.delete(it.reference) }
+            refsToDelete += lessonsSnapshot.documents.map { it.reference }
 
             val quizzesSnapshot = quizzesCollection.whereEqualTo("courseId", courseId).get().await()
-            quizzesSnapshot.documents.forEach { batch.delete(it.reference) }
+            refsToDelete += quizzesSnapshot.documents.map { it.reference }
 
             val enrollmentsSnapshot = enrollmentsCollection.whereEqualTo("courseId", courseId).get().await()
-            enrollmentsSnapshot.documents.forEach { batch.delete(it.reference) }
+            refsToDelete += enrollmentsSnapshot.documents.map { it.reference }
 
             val reviewsSnapshot = reviewsCollection.whereEqualTo("courseId", courseId).get().await()
-            reviewsSnapshot.documents.forEach { batch.delete(it.reference) }
+            refsToDelete += reviewsSnapshot.documents.map { it.reference }
 
             val progressSnapshot = progressCollection.whereEqualTo("courseId", courseId).get().await()
-            progressSnapshot.documents.forEach { batch.delete(it.reference) }
+            refsToDelete += progressSnapshot.documents.map { it.reference }
 
             val lessonProgressSnapshot = lessonProgressCollection.whereEqualTo("courseId", courseId).get().await()
-            lessonProgressSnapshot.documents.forEach { batch.delete(it.reference) }
+            refsToDelete += lessonProgressSnapshot.documents.map { it.reference }
 
             val quizProgressSnapshot = quizProgressCollection.whereEqualTo("courseId", courseId).get().await()
-            quizProgressSnapshot.documents.forEach { batch.delete(it.reference) }
+            refsToDelete += quizProgressSnapshot.documents.map { it.reference }
 
-            batch.commit().await()
+            refsToDelete
+                .distinctBy { it.path }
+                .chunked(450)
+                .forEach { chunk ->
+                    val batch = firestore.batch()
+                    chunk.forEach { ref -> batch.delete(ref) }
+                    batch.commit().await()
+                }
+
             RepositoryCache.invalidateByPrefix(PUBLISHED_COURSE_CACHE_PREFIX)
             RepositoryCache.invalidateByPrefix(ADMIN_COURSE_CACHE_PREFIX)
             ResultState.Success(Unit)

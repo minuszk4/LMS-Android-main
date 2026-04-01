@@ -146,12 +146,14 @@ class RecommendationRepository {
             .get()
             .await()
 
+        val enrolledById = enrolledCourses.associateBy { it.id }
+
         val courseProgress = progressSnapshot.documents.associate { doc ->
             val courseId = doc.getString("courseId") ?: ""
-            val completedItems = (doc.getLong("completedItems")?.toInt() ?: 0)
-            val totalItems = (doc.getLong("totalItems")?.toInt() ?: 0)
-            val progressWeight = if (totalItems > 0) {
-                (completedItems.toDouble() / totalItems * 2.0).coerceAtLeast(0.5)
+            val completedLessons = (doc.getLong("completedLessons")?.toInt() ?: 0)
+            val totalLessons = enrolledById[courseId]?.lessonCount ?: 0
+            val progressWeight = if (totalLessons > 0) {
+                (completedLessons.toDouble() / totalLessons * 2.0).coerceAtLeast(0.5)
             } else {
                 0.5
             }
