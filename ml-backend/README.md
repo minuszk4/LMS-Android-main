@@ -4,9 +4,9 @@ Python Flask backend for course recommendations with ML model.
 
 ## Architecture
 
-- **Model**: Random Forest classifier trained on user-course interaction patterns
+- **Model**: Lightweight linear scorer trained on user-course interaction patterns
 - **Fallback**: Heuristic scoring when model is not trained or unavailable
-- **Database**: Firebase Firestore for user profiles and course data
+- **Data source**: Local `scripts/seed/seed_data.json` during development and training
 
 ## Local Development
 
@@ -24,11 +24,7 @@ pip install -r requirements.txt
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and fill in Firebase credentials:
-
-```bash
-cp .env.example .env
-```
+Copy `.env.example` to `.env` if you still want to use Firebase in other parts of the repo.
 
 ### Running
 
@@ -37,6 +33,14 @@ python app.py
 ```
 
 Server starts on `http://localhost:5000`
+
+### Train Model
+
+Train the model from local seed data and save the weight file for later experiments:
+
+```bash
+python train_model.py --seed-data ../scripts/seed/seed_data.json --output artifacts/recommendation_model.json
+```
 
 ## API Endpoints
 
@@ -120,12 +124,9 @@ RECOMMENDATION_API_URL=https://your-service-name.onrender.com
 
 ### Current Status
 
-- Model is **not trained** - using heuristic fallback
-- Ready to deploy as-is, app will use heuristic scoring
-- Once you have sufficient training data:
-  1. Collect user enrollment + course interaction data
-  2. Run model training script
-  3. Model will automatically use trained weights
+- Model can be trained from `seed_data.json` for offline experiments
+- Runtime API still uses heuristic scoring only
+- The saved artifact is temporary and not loaded automatically
 
 ### Future Improvements
 

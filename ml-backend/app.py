@@ -1,41 +1,56 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import firebase_admin
-from firebase_admin import credentials, firestore
 import os
 import json
 from model import RecommendationModel
 from dotenv import load_dotenv
+from pathlib import Path
+from typing import Optional
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize Firebase
-firebase_key_path = os.getenv('FIREBASE_KEY_PATH', 'serviceAccountKey.json')
-if os.path.exists(firebase_key_path):
-    cred = credentials.Certificate(firebase_key_path)
-    firebase_admin.initialize_app(cred)
-else:
-    # Try to load from env var
-    firebase_config = {
-        "type": "service_account",
-        "project_id": os.getenv("FIREBASE_PROJECT_ID"),
-        "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-        "private_key": os.getenv("FIREBASE_PRIVATE_KEY", "").replace("\\n", "\n"),
-        "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
-        "client_id": os.getenv("FIREBASE_CLIENT_ID"),
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL")
-    }
-    cred = credentials.Certificate(firebase_config)
-    firebase_admin.initialize_app(cred)
-
-db = firestore.client()
 model = RecommendationModel()
+seed_data = None
+
+
+def _load_seed_data() -> dict:
+    """Load locally generated seed data instead of Firestore."""
+    default_seed_path = Path(__file__).resolve().parent.parent / "scripts" / "seed" / "seed_data.json"
+    seed_data_path = Path(os.getenv("SEED_DATA_PATH", str(default_seed_path)))
+
+    if not seed_data_path.exists():
+        raise FileNotFoundError(
+            f"Seed data file not found: {seed_data_path}. Set SEED_DATA_PATH to a valid seed_data.json file."
+        )
+
+    with seed_data_path.open("r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def _get_collection(name: str) -> list:
+    return seed_data.get(name, []) if seed_data else []
+
+
+def _get_course_by_id(course_id: str) -> Optional[dict]:
+    for course in _get_collection("courses"):
+        if course.get("id") == course_id:
+            return course
+    return None
+
+
+def _build_course_list(course_ids: list) -> list:
+    courses = []
+    for course_id in course_ids:
+        course = _get_course_by_id(course_id)
+        if course:
+            courses.append(course)
+    return courses
+
+
+seed_data = _load_seed_data()
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -77,32 +92,19 @@ def get_recommendations():
             return jsonify({'error': 'candidateCourseIds is required'}), 400
         
         # Fetch user enrollments
-        enrollments_ref = db.collection('enrollments')
-        user_enrollments_docs = enrollments_ref.where('userId', '==', user_id).stream()
-        user_enrollment_ids = [doc.get('courseId') for doc in user_enrollments_docs if doc.get('courseId')]
-        
-        # Fetch enrolled courses to build user profile
-        courses_ref = db.collection('courses')
-        enrolled_courses = []
-        
-        for course_id in user_enrollment_ids:
-            course_doc = courses_ref.document(course_id).get()
-            if course_doc.exists:
-                course_data = course_doc.to_dict()
-                course_data['id'] = course_id
-                enrolled_courses.append(course_data)
+        user_enrollment_ids = [
+            enrollment.get('courseId')
+            for enrollment in _get_collection('enrollments')
+            if enrollment.get('userId') == user_id and enrollment.get('courseId')
+        ]
+
+        enrolled_courses = _build_course_list(user_enrollment_ids)
         
         # Build user profile from enrolled courses
         user_profile = _build_user_profile(user_id, enrolled_courses)
         
         # Fetch candidate courses
-        candidate_courses = []
-        for course_id in candidate_course_ids:
-            course_doc = courses_ref.document(course_id).get()
-            if course_doc.exists:
-                course_data = course_doc.to_dict()
-                course_data['id'] = course_id
-                candidate_courses.append(course_data)
+        candidate_courses = _build_course_list(candidate_course_ids)
         
         if not candidate_courses:
             return jsonify({'recommendations': []}), 200
@@ -135,11 +137,12 @@ def _build_user_profile(user_id: str, enrolled_courses: list) -> dict:
     instructor_weights = {}
     
     # Get progress data
-    progress_ref = db.collection('progress')
-    progress_docs = progress_ref.where('userId', '==', user_id).stream()
     progress_weights = {}
     
-    for doc in progress_docs:
+    for doc in _get_collection('progress'):
+        if doc.get('userId') != user_id:
+            continue
+
         course_id = doc.get('courseId')
         completed_lessons = doc.get('completedLessons', 0)
         

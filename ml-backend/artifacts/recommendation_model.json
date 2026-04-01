@@ -1,0 +1,21 @@
+{
+  "weights": [
+    0.12260021865889209,
+    0.07556183187560739,
+    0.1374526239067054,
+    0.016517857142857584,
+    0.010357142857142856,
+    0.0008928571428571883,
+    -1.0
+  ],
+  "bias": -0.13264447460629472,
+  "feature_names": [
+    "category_affinity",
+    "level_affinity",
+    "instructor_affinity",
+    "rating",
+    "enrollment_count",
+    "lesson_count",
+    "recency_weight"
+  ]
+}
