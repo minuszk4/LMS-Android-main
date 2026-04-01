@@ -338,7 +338,7 @@ private fun iconStyleFor(type: NotificationType): Triple<ImageVector, Color, Col
 }
 
 private fun sectionOf(createdAt: Long): NotificationSection {
-    val now = Calendar.getInstance()
+    val now = System.currentTimeMillis()
     val startToday = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
@@ -349,8 +349,8 @@ private fun sectionOf(createdAt: Long): NotificationSection {
     val startYesterday = startToday - TimeUnit.DAYS.toMillis(1)
 
     return when {
-        createdAt >= startToday && createdAt <= now.timeInMillis -> NotificationSection.TODAY
-        createdAt >= startYesterday -> NotificationSection.YESTERDAY
+        createdAt >= startToday && createdAt <= now -> NotificationSection.TODAY
+        createdAt >= startYesterday && createdAt < startToday -> NotificationSection.YESTERDAY
         else -> NotificationSection.RECENT
     }
 }

@@ -273,8 +273,9 @@ class InstructorAnalyticsRepository {
                 val labels = max(4, days / 7)
                 val step = max(1, ceil(days.toDouble() / labels).toInt())
 
-                (0 until labels).map { index ->
-                    val offset = (days - (index * step)).coerceAtLeast(0)
+                // Create buckets from oldest to newest (including today)
+                (labels - 1 downTo 0).map { index ->
+                    val offset = index * step
                     val bucketCal = (base.clone() as Calendar).apply {
                         add(Calendar.DAY_OF_YEAR, -offset)
                     }
@@ -283,11 +284,12 @@ class InstructorAnalyticsRepository {
                         label = label,
                         startAt = bucketCal.timeInMillis
                     )
-                }.toMutableList()
+                }.reversed().toMutableList()
             }
 
             InstructorTimeRange.ALL_TIME -> {
-                (5 downTo 1).map { offset ->
+                // Create buckets from oldest (5 months ago) to newest (current month)
+                (5 downTo 0).map { offset ->
                     val bucketCal = (base.clone() as Calendar).apply {
                         add(Calendar.MONTH, -offset)
                         set(Calendar.DAY_OF_MONTH, 1)
@@ -296,18 +298,23 @@ class InstructorAnalyticsRepository {
                         label = "T${bucketCal.get(Calendar.MONTH) + 1}",
                         startAt = bucketCal.timeInMillis
                     )
-                }.toMutableList()
+                }.reversed().toMutableList()
             }
         }
     }
 
     private fun bucketIndex(timestamp: Long, starts: List<Long>): Int {
         if (starts.isEmpty()) return -1
+        if (starts.size == 1) return 0
 
+        // starts are in chronological order (oldest to newest)
+        // Find which bucket this timestamp belongs to by greedy matching
         var matchedIndex = -1
-        starts.forEachIndexed { index, startAt ->
-            if (timestamp >= startAt) {
-                matchedIndex = index
+        for (i in starts.indices) {
+            if (timestamp >= starts[i]) {
+                matchedIndex = i
+            } else {
+                break
             }
         }
 
