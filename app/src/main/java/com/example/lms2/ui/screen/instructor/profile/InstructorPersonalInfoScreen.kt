@@ -74,6 +74,7 @@ fun InstructorPersonalInfoRoute(
         instructor = uiState.instructor,
         snackbarHostState = snackbarHostState,
         onSaveBankInfo = viewModel::saveBankInfo,
+        onSaveInstructorProfile = viewModel::saveInstructorProfile,
         onBackClick = onBackClick
     )
 }
@@ -86,6 +87,7 @@ private fun InstructorPersonalInfoScreen(
     instructor: Instructor?,
     snackbarHostState: SnackbarHostState,
     onSaveBankInfo: (String, String, String, String, String) -> Unit,
+    onSaveInstructorProfile: (String, String, String, Int) -> Unit,
     onBackClick: () -> Unit
 ) {
     var bankName by remember(instructor?.uid, instructor?.bankName) { mutableStateOf(instructor?.bankName.orEmpty()) }
@@ -96,6 +98,10 @@ private fun InstructorPersonalInfoScreen(
     var bankAccountHolder by remember(instructor?.uid, instructor?.bankAccountHolder) {
         mutableStateOf(instructor?.bankAccountHolder.orEmpty())
     }
+
+    var expertise by remember(instructor?.uid, instructor?.expertise) { mutableStateOf(instructor?.expertise.orEmpty()) }
+    var qualification by remember(instructor?.uid, instructor?.qualification) { mutableStateOf(instructor?.qualification.orEmpty()) }
+    var experienceYears by remember(instructor?.uid, instructor?.experienceYears) { mutableStateOf(instructor?.experienceYears?.toString().orEmpty()) }
 
     Scaffold(
         topBar = {
@@ -142,27 +148,80 @@ private fun InstructorPersonalInfoScreen(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            InfoCard(
-                title = "Chuyên môn",
-                value = instructor.expertise.ifBlank { "Chưa cập nhật" }
-            )
-            InfoCard(
-                title = "Số năm kinh nghiệm",
-                value = if (instructor.experienceYears > 0) {
-                    "${instructor.experienceYears} năm"
-                } else {
-                    "Chưa cập nhật"
-                }
-            )
-            InfoCard(
-                title = "Trình độ/Bằng cấp",
-                value = instructor.qualification.ifBlank { "Chưa cập nhật" }
-            )
-            InfoCard(
-                title = "Tài khoản ngân hàng",
-                value = instructor.bankAccount.ifBlank { "Chưa cập nhật" }
-            )
+            // Editable Instructor Profile Section
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp)),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Thông tin chuyên môn",
+                        color = Color(0xFF1E293B),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
 
+                    OutlinedTextField(
+                        value = expertise,
+                        onValueChange = { expertise = it },
+                        label = { Text("Chuyên môn") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = qualification,
+                        onValueChange = { qualification = it },
+                        label = { Text("Trình độ/Bằng cấp") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = experienceYears,
+                        onValueChange = { experienceYears = it.filter(Char::isDigit) },
+                        label = { Text("Số năm kinh nghiệm") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    Button(
+                        onClick = {
+                            val yearsInt = experienceYears.toIntOrNull() ?: 0
+                            onSaveInstructorProfile(
+                                instructorId,
+                                expertise,
+                                qualification,
+                                yearsInt
+                            )
+                        },
+                        enabled = !isSaving && expertise.isNotBlank() && qualification.isNotBlank() && experienceYears.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B5CC4))
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.height(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(text = "Lưu thông tin chuyên môn", color = Color.White)
+                        }
+                    }
+                }
+            }
+
+            // Bank Account Section
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -227,7 +286,7 @@ private fun InstructorPersonalInfoScreen(
                                 bankAccountHolder
                             )
                         },
-                        enabled = !isSaving,
+                        enabled = !isSaving && bankName.isNotBlank() && bankCode.isNotBlank() && bankAccountNumber.isNotBlank() && bankAccountHolder.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B5CC4))
                     ) {
@@ -243,6 +302,8 @@ private fun InstructorPersonalInfoScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

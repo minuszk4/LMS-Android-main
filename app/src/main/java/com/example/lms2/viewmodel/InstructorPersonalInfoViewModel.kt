@@ -76,6 +76,43 @@ class InstructorPersonalInfoViewModel(
         }
     }
 
+    fun saveInstructorProfile(
+        instructorId: String,
+        expertise: String,
+        qualification: String,
+        experienceYears: Int
+    ) {
+        if (instructorId.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true) }
+
+            when (
+                val result = repository.updateInstructorProfile(
+                    instructorId = instructorId,
+                    expertise = expertise,
+                    qualification = qualification,
+                    experienceYears = experienceYears
+                )
+            ) {
+                is ResultState.Success -> {
+                    _uiState.update { it.copy(isSaving = false) }
+                    _event.emit(InstructorPersonalInfoEvent.ShowSuccess("Đã cập nhật thông tin giảng viên"))
+                    load(instructorId)
+                }
+
+                is ResultState.Error -> {
+                    _uiState.update { it.copy(isSaving = false) }
+                    _event.emit(InstructorPersonalInfoEvent.ShowError(result.message))
+                }
+
+                else -> {
+                    _uiState.update { it.copy(isSaving = false) }
+                }
+            }
+        }
+    }
+
     private fun load(instructorId: String) {
         viewModelScope.launch {
             loadedInstructorId = instructorId

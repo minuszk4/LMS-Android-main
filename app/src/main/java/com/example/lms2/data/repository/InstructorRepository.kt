@@ -33,6 +33,40 @@ class InstructorRepository {
         }
     }
 
+    suspend fun updateInstructorProfile(
+        instructorId: String,
+        expertise: String,
+        qualification: String,
+        experienceYears: Int
+    ): ResultState<Unit> {
+        if (instructorId.isBlank()) return ResultState.Error("Thiếu thông tin giảng viên")
+
+        val normalizedExpertise = expertise.trim()
+        val normalizedQualification = qualification.trim()
+
+        if (normalizedExpertise.isBlank() || normalizedQualification.isBlank() || experienceYears <= 0) {
+            return ResultState.Error("Vui lòng nhập đầy đủ chuyên môn, bằng cấp và số năm kinh nghiệm (> 0)")
+        }
+
+        return try {
+            val data = mapOf(
+                "uid" to instructorId,
+                "expertise" to normalizedExpertise,
+                "qualification" to normalizedQualification,
+                "experienceYears" to experienceYears
+            )
+
+            instructorsCollection
+                .document(instructorId)
+                .set(data, SetOptions.merge())
+                .await()
+
+            ResultState.Success(Unit)
+        } catch (e: Exception) {
+            ResultState.Error(e.message ?: "Cập nhật thông tin giảng viên thất bại")
+        }
+    }
+
     suspend fun updateBankInfo(
         instructorId: String,
         bankName: String,

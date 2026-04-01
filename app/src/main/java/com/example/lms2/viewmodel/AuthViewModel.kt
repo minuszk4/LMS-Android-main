@@ -273,15 +273,18 @@ class AuthViewModel(
 
             when (val result = repository.updateProfile(uid, trimmedName, finalAvatarUrl)) {
                 is ResultState.Success -> {
-                    val updatedUser = _uiState.value.currentUser?.copy(
-                        fullName = trimmedName,
-                        avatarUrl = finalAvatarUrl.trim().ifBlank { null }
-                    )
-                    _uiState.value = _uiState.value.copy(
-                        isUpdatingProfile = false,
-                        currentUser = updatedUser
-                    )
-                    _event.emit(AuthEvent.ProfileUpdated)
+                    _uiState.value = _uiState.value.copy(isUpdatingProfile = false)
+                    // Refresh user data from Firestore to ensure we have the latest state
+                    when (val userResult = repository.getUserDetails(uid)) {
+                        is ResultState.Success -> {
+                            _uiState.value = _uiState.value.copy(currentUser = userResult.data)
+                            _event.emit(AuthEvent.ProfileUpdated)
+                        }
+                        is ResultState.Error -> {
+                            _event.emit(AuthEvent.ShowError(userResult.message))
+                        }
+                        ResultState.Loading -> Unit
+                    }
                 }
                 is ResultState.Error -> {
                     _uiState.value = _uiState.value.copy(isUpdatingProfile = false)
