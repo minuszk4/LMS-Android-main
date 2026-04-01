@@ -910,16 +910,16 @@ class OpenRouterChatbotRepository {
     ): ResultState<List<ChatMessage>> {
         val limit = extractRecommendationLimit(userContent)
         return when (val result = recommendationRepository.getRecommendedCourses(userId, limit)) {
-            is ResultState.Success -> {
-                val recommendations = result.data
+            is ResultState.Success<*> -> {
+                val recommendations = result.data as List<Course>
                 if (recommendations.isEmpty()) {
                     val botMessageResult = sendMessage(
                         sessionId = sessionId,
                         sender = ChatSender.BOT,
                         content = "Hiện chưa có khóa học phù hợp để gợi ý."
                     )
-                    when (botMessageResult) {
-                        is ResultState.Success -> ResultState.Success(listOf(userMessage, botMessageResult.data))
+                    return when (botMessageResult) {
+                        is ResultState.Success<*> -> ResultState.Success(listOf(userMessage, (botMessageResult as ResultState.Success<ChatMessage>).data))
                         is ResultState.Error -> ResultState.Error(botMessageResult.message)
                         else -> ResultState.Error("Lưu phản hồi chatbot thất bại")
                     }
@@ -932,8 +932,8 @@ class OpenRouterChatbotRepository {
                         messageType = ChatMessageType.COURSE_LIST,
                         metadata = metadata
                     )
-                    when (botMessageResult) {
-                        is ResultState.Success -> ResultState.Success(listOf(userMessage, botMessageResult.data))
+                    return when (botMessageResult) {
+                        is ResultState.Success<*> -> ResultState.Success(listOf(userMessage, (botMessageResult as ResultState.Success<ChatMessage>).data))
                         is ResultState.Error -> ResultState.Error(botMessageResult.message)
                         else -> ResultState.Error("Lưu phản hồi chatbot thất bại")
                     }
@@ -1052,9 +1052,9 @@ class OpenRouterChatbotRepository {
                 "recommend_new_courses" -> {
                     val limit = (args["limit"] as? Number)?.toInt() ?: 5
                     when (val result = recommendationRepository.getRecommendedCourses(userId, limit)) {
-                        is ResultState.Success -> mapOf(
+                        is ResultState.Success<*> -> mapOf(
                             "success" to true,
-                            "recommendations" to result.data.map { courseToMap(it) }
+                            "recommendations" to (result.data as List<Course>).map { courseToMap(it) }
                         )
                         is ResultState.Error -> mapOf("success" to false, "error" to result.message)
                         else -> mapOf("success" to false, "error" to "Unknown error")
@@ -1206,9 +1206,9 @@ class OpenRouterChatbotRepository {
                     val categoryId = args["categoryId"] as? String ?: ""
                     val limit = (args["limit"] as? Number)?.toInt() ?: 5
                     when (val result = recommendationRepository.getRecommendedCoursesByCategory(userId, categoryId, limit)) {
-                        is ResultState.Success -> mapOf(
+                        is ResultState.Success<*> -> mapOf(
                             "success" to true,
-                            "recommendations" to result.data.map { courseToMap(it) }
+                            "recommendations" to (result.data as List<Course>).map { courseToMap(it) }
                         )
                         is ResultState.Error -> mapOf("success" to false, "error" to result.message)
                         else -> mapOf("success" to false, "error" to "Unknown error")

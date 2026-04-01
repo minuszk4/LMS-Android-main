@@ -1,21 +1,45 @@
 package com.example.lms2.data.repository
 
+import com.example.lms2.BuildConfig
 import com.example.lms2.data.model.Course
 import com.example.lms2.data.model.CourseLevel
 import com.example.lms2.util.ResultState
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 import kotlin.math.exp
-import kotlin.math.ln
-import kotlin.math.pow
-import kotlin.math.sqrt
 
 class RecommendationRepository {
+
+    private companion object {
+        const val HEURISTIC_WEIGHT = 0.35
+        const val BACKEND_WEIGHT = 0.65
+        const val BACKEND_TIMEOUT_SECONDS = 12L
+        const val BACKEND_RECOMMENDATION_PATH = "/recommendations"
+    }
     
     private val firestore = FirebaseFirestore.getInstance()
     private val coursesCollection = firestore.collection("courses")
     private val enrollmentsCollection = firestore.collection("enrollments")
     private val progressCollection = firestore.collection("progress")
+
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(BACKEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(BACKEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(BACKEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .callTimeout(BACKEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
+
+    private val recommendationBackendUrl: String
+        get() = BuildConfig.RECOMMENDATION_API_URL.trim().trimEnd('/')
 
     suspend fun getRecommendedCourses(
         userId: String,
@@ -24,17 +48,15 @@ class RecommendationRepository {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
-            // Get user's enrolled courses
             val enrolledCoursesSnapshot = enrollmentsCollection
                 .whereEqualTo("userId", userId)
                 .get()
                 .await()
-            
+
             val enrolledCourseIds = enrolledCoursesSnapshot.documents
                 .mapNotNull { it.getString("courseId") }
                 .toSet()
 
-            // Get all published courses
             val coursesSnapshot = coursesCollection
                 .whereEqualTo("isPublished", true)
                 .get()
@@ -44,41 +66,57 @@ class RecommendationRepository {
                 doc.toObject(Course::class.java)?.copy(id = doc.id)
             }
 
-            // Filter out enrolled courses
             val availableCourses = allCourses.filter { it.id !in enrolledCourseIds }
-
             if (availableCourses.isEmpty()) {
                 return ResultState.Success(emptyList())
             }
 
-            // If user has no enrollments, use popularity-based ranking (cold start)
             if (enrolledCourseIds.isEmpty()) {
-                val popularCourses = availableCourses
-                    .sortedWith(
-                        compareByDescending<Course> { it.enrollmentCount }
-                            .thenByDescending { it.rating }
-                    )
-                    .take(limit)
-                return ResultState.Success(popularCourses)
+                return ResultState.Success(
+                    availableCourses
+                        .sortedWith(
+                            compareByDescending<Course> { it.enrollmentCount }
+                                .thenByDescending { it.rating }
+                        )
+                        .take(limit)
+                )
             }
 
-            // Get enrolled courses details
             val enrolledCourses = allCourses.filter { it.id in enrolledCourseIds }
+            val progressSnapshot = progressCollection
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
 
-            // Calculate user profile vector based on preferences
-            val userProfile = calculateUserProfile(userId, enrolledCourses)
+            val userProfile = buildUserProfile(
+                userId = userId,
+                enrolledCourses = enrolledCourses,
+                progressSnapshot = progressSnapshot,
+                courseById = allCourses.associateBy { it.id }
+            )
 
-            // Calculate similarity scores for available courses
-            val recommendations = availableCourses
+            val backendScores = fetchBackendRecommendations(
+                userId = userId,
+                limit = limit,
+                candidateCourseIds = availableCourses.map { it.id }
+            )
+
+            val recommendedCourses = availableCourses
                 .map { course ->
-                    val similarity = calculateCosineSimilarity(userProfile, course)
-                    Pair(course, similarity)
+                    val heuristicScore = calculateHeuristicScore(userProfile, course)
+                    val backendScore = backendScores[course.id]
+                    val finalScore = if (backendScore != null) {
+                        (heuristicScore * HEURISTIC_WEIGHT) + (backendScore * BACKEND_WEIGHT)
+                    } else {
+                        heuristicScore
+                    }
+                    course to finalScore
                 }
                 .sortedByDescending { it.second }
                 .take(limit)
                 .map { it.first }
 
-            ResultState.Success(recommendations)
+            ResultState.Success(recommendedCourses)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Lấy gợi ý khóa học thất bại")
         }
@@ -92,111 +130,195 @@ class RecommendationRepository {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
-            // Get user's enrolled courses
             val enrolledCoursesSnapshot = enrollmentsCollection
                 .whereEqualTo("userId", userId)
                 .get()
                 .await()
-            
+
             val enrolledCourseIds = enrolledCoursesSnapshot.documents
                 .mapNotNull { it.getString("courseId") }
                 .toSet()
 
-            // Get courses in the specified category
             val coursesSnapshot = coursesCollection
                 .whereEqualTo("categoryId", categoryId)
                 .whereEqualTo("isPublished", true)
                 .get()
                 .await()
 
-            val categoryCourses = coursesSnapshot.documents
-                .mapNotNull { doc ->
-                    doc.toObject(Course::class.java)?.copy(id = doc.id)
-                }
-                .filter { it.id !in enrolledCourseIds }
+            val categoryCourses = coursesSnapshot.documents.mapNotNull { doc ->
+                doc.toObject(Course::class.java)?.copy(id = doc.id)
+            }.filter { it.id !in enrolledCourseIds }
 
             if (categoryCourses.isEmpty()) {
                 return ResultState.Success(emptyList())
             }
 
-            // Sort by popularity
-            val recommendations = categoryCourses
-                .sortedWith(
-                    compareByDescending<Course> { it.rating }
-                        .thenByDescending { it.enrollmentCount }
-                )
-                .take(limit)
+            val progressSnapshot = progressCollection
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
 
-            ResultState.Success(recommendations)
+            val userProfile = buildUserProfile(
+                userId = userId,
+                enrolledCourses = categoryCourses.filter { it.id in enrolledCourseIds },
+                progressSnapshot = progressSnapshot,
+                courseById = categoryCourses.associateBy { it.id }
+            )
+
+            val backendScores = fetchBackendRecommendations(
+                userId = userId,
+                limit = limit,
+                candidateCourseIds = categoryCourses.map { it.id },
+                categoryId = categoryId
+            )
+
+            val recommendedCourses = categoryCourses
+                .map { course ->
+                    val heuristicScore = calculateHeuristicScore(userProfile, course)
+                    val backendScore = backendScores[course.id]
+                    val finalScore = if (backendScore != null) {
+                        (heuristicScore * HEURISTIC_WEIGHT) + (backendScore * BACKEND_WEIGHT)
+                    } else {
+                        heuristicScore
+                    }
+                    course to finalScore
+                }
+                .sortedByDescending { it.second }
+                .take(limit)
+                .map { it.first }
+
+            ResultState.Success(recommendedCourses)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Lấy gợi ý khóa học theo danh mục thất bại")
         }
     }
 
-    private suspend fun calculateUserProfile(
+    private suspend fun fetchBackendRecommendations(
         userId: String,
-        enrolledCourses: List<Course>
+        limit: Int,
+        candidateCourseIds: List<String>,
+        categoryId: String? = null
+    ): Map<String, Double> {
+        if (recommendationBackendUrl.isBlank()) return emptyMap()
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val payload = JSONObject().apply {
+                    put("userId", userId)
+                    put("limit", limit)
+                    put("candidateCourseIds", JSONArray(candidateCourseIds))
+                    categoryId?.takeIf { it.isNotBlank() }?.let { put("categoryId", it) }
+                }
+
+                val request = Request.Builder()
+                    .url("$recommendationBackendUrl$BACKEND_RECOMMENDATION_PATH")
+                    .post(
+                        payload.toString().toRequestBody(
+                            "application/json; charset=utf-8".toMediaType()
+                        )
+                    )
+                    .build()
+
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext emptyMap()
+                    val body = response.body?.string().orEmpty()
+                    if (body.isBlank()) return@withContext emptyMap()
+                    parseBackendScores(JSONObject(body), candidateCourseIds)
+                }
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        }
+    }
+
+    private fun parseBackendScores(
+        json: JSONObject,
+        candidateCourseIds: List<String>
+    ): Map<String, Double> {
+        val array = when {
+            json.has("recommendations") -> json.optJSONArray("recommendations")
+            json.has("courses") -> json.optJSONArray("courses")
+            json.has("data") -> json.optJSONArray("data")
+            else -> null
+        } ?: return emptyMap()
+
+        val scores = mutableMapOf<String, Double>()
+
+        for (index in 0 until array.length()) {
+            when (val item = array.opt(index)) {
+                is String -> {
+                    val courseId = item.trim()
+                    if (courseId.isNotBlank() && courseId in candidateCourseIds) {
+                        scores[courseId] = maxOf(scores[courseId] ?: 0.0, normalizedRankScore(index, array.length(), Double.NaN))
+                    }
+                }
+
+                is JSONObject -> {
+                    val courseId = item.optString("courseId").ifBlank { item.optString("id") }
+                    if (courseId.isBlank() || courseId !in candidateCourseIds) continue
+
+                    val rawScore = when {
+                        item.has("score") -> item.optDouble("score", Double.NaN)
+                        item.has("rankScore") -> item.optDouble("rankScore", Double.NaN)
+                        else -> Double.NaN
+                    }
+
+                    scores[courseId] = maxOf(
+                        scores[courseId] ?: 0.0,
+                        normalizedRankScore(index, array.length(), rawScore)
+                    )
+                }
+            }
+        }
+
+        return scores
+    }
+
+    private fun normalizedRankScore(
+        index: Int,
+        total: Int,
+        rawScore: Double
+    ): Double {
+        if (!rawScore.isNaN()) {
+            return if (rawScore in 0.0..1.0) {
+                rawScore.coerceIn(0.0, 1.0)
+            } else {
+                1.0 / (1.0 + exp(-rawScore.coerceIn(-20.0, 20.0)))
+            }
+        }
+
+        if (total <= 1) return 1.0
+        return 1.0 - (index.toDouble() / (total - 1).toDouble())
+    }
+
+    private fun buildUserProfile(
+        userId: String,
+        enrolledCourses: List<Course>,
+        progressSnapshot: com.google.firebase.firestore.QuerySnapshot,
+        courseById: Map<String, Course>
     ): UserProfile {
         val categoryWeights = mutableMapOf<String, Double>()
         val levelWeights = mutableMapOf<CourseLevel, Double>()
         val instructorWeights = mutableMapOf<String, Double>()
 
-        // Get progress data to weight courses by interaction time
-        val progressSnapshot = progressCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
+        val progressWeights = buildCourseInteractionWeights(
+            userId = userId,
+            progressSnapshot = progressSnapshot,
+            enrolledCourseIds = enrolledCourses.map { it.id }.toSet(),
+            courseById = courseById
+        )
 
-        val enrolledById = enrolledCourses.associateBy { it.id }
-
-        val nowMs = System.currentTimeMillis()
-        val dayMs = 24 * 60 * 60 * 1000.0
-
-        val courseProgress = progressSnapshot.documents.associate { doc ->
-            val courseId = doc.getString("courseId") ?: ""
-            val completedLessons = (doc.getLong("completedLessons")?.toInt() ?: 0)
-            val totalLessons = enrolledById[courseId]?.lessonCount ?: 0
-            val progressWeight = if (totalLessons > 0) {
-                (completedLessons.toDouble() / totalLessons * 2.0).coerceAtLeast(0.5)
-            } else {
-                0.5
-            }
-
-            // Recency from viewing history: newer lastAccessedAt => higher weight.
-            val lastAccessedAt = doc.getLong("lastAccessedAt") ?: 0L
-            val recencyWeight = if (lastAccessedAt > 0L) {
-                val daysAgo = ((nowMs - lastAccessedAt).coerceAtLeast(0L)) / dayMs
-                // Exponential decay, clamped to keep historical interests alive.
-                exp(-daysAgo / 30.0).coerceIn(0.3, 1.0)
-            } else {
-                0.3
-            }
-
-            courseId to (progressWeight * recencyWeight)
-        }
-
-        // Calculate weighted preferences
         enrolledCourses.forEach { course ->
-            val weight = courseProgress[course.id] ?: 0.5
-
-            // Weight by category
-            categoryWeights[course.categoryId] = 
-                (categoryWeights[course.categoryId] ?: 0.0) + weight
-
-            // Weight by level
-            levelWeights[course.level] = 
-                (levelWeights[course.level] ?: 0.0) + weight
-
-            // Weight by instructor
-            instructorWeights[course.instructorId] = 
-                (instructorWeights[course.instructorId] ?: 0.0) + weight
+            val weight = progressWeights[course.id] ?: 0.5
+            categoryWeights[course.categoryId] = (categoryWeights[course.categoryId] ?: 0.0) + weight
+            levelWeights[course.level] = (levelWeights[course.level] ?: 0.0) + weight
+            instructorWeights[course.instructorId] = (instructorWeights[course.instructorId] ?: 0.0) + weight
         }
 
-        // Normalize weights
-        val totalWeight = enrolledCourses.size.toDouble()
-        categoryWeights.replaceAll { _, v -> v / totalWeight }
-        levelWeights.replaceAll { _, v -> v / totalWeight }
-        instructorWeights.replaceAll { _, v -> v / totalWeight }
+        val totalWeight = enrolledCourses.size.toDouble().coerceAtLeast(1.0)
+        categoryWeights.replaceAll { _, value -> value / totalWeight }
+        levelWeights.replaceAll { _, value -> value / totalWeight }
+        instructorWeights.replaceAll { _, value -> value / totalWeight }
 
         return UserProfile(
             categoryWeights = categoryWeights,
@@ -205,48 +327,59 @@ class RecommendationRepository {
         )
     }
 
-    private fun calculateCosineSimilarity(
+    private fun buildCourseInteractionWeights(
+        userId: String,
+        progressSnapshot: com.google.firebase.firestore.QuerySnapshot,
+        enrolledCourseIds: Set<String>,
+        courseById: Map<String, Course>
+    ): Map<String, Double> {
+        val weights = mutableMapOf<String, Double>()
+        val nowMs = System.currentTimeMillis()
+        val dayMs = 24 * 60 * 60 * 1000.0
+
+        progressSnapshot.documents
+            .filter { it.getString("userId") == userId }
+            .forEach { doc ->
+                val courseId = doc.getString("courseId") ?: return@forEach
+                val completedLessons = doc.getLong("completedLessons")?.toInt() ?: 0
+                val totalLessons = courseById[courseId]?.lessonCount ?: 0
+                val progressWeight = if (totalLessons > 0) {
+                    (completedLessons.toDouble() / totalLessons * 2.0).coerceAtLeast(0.5)
+                } else {
+                    0.5
+                }
+
+                val lastAccessedAt = doc.getLong("lastAccessedAt") ?: 0L
+                val recencyWeight = if (lastAccessedAt > 0L) {
+                    val daysAgo = ((nowMs - lastAccessedAt).coerceAtLeast(0L)) / dayMs
+                    exp(-daysAgo / 30.0).coerceIn(0.3, 1.0)
+                } else {
+                    0.3
+                }
+
+                weights[courseId] = maxOf(weights[courseId] ?: 0.0, progressWeight * recencyWeight)
+            }
+
+        enrolledCourseIds.forEach { courseId ->
+            weights[courseId] = maxOf(weights[courseId] ?: 0.0, 1.0)
+        }
+
+        return weights
+    }
+
+    private fun calculateHeuristicScore(
         userProfile: UserProfile,
         course: Course
     ): Double {
-        // Build feature vectors
-        val userVector = mutableListOf<Double>()
-        val courseVector = mutableListOf<Double>()
-
-        // Category similarity (TF-IDF inspired)
         val categoryWeight = userProfile.categoryWeights[course.categoryId] ?: 0.0
-        val categoryIdf = ln(1.0 + (1.0 / (categoryWeight + 0.01)))
-        userVector.add(categoryWeight * categoryIdf)
-        courseVector.add(if (course.categoryId.isNotEmpty()) 1.0 * categoryIdf else 0.0)
-
-        // Level similarity
         val levelWeight = userProfile.levelWeights[course.level] ?: 0.0
-        val levelIdf = ln(1.0 + (1.0 / (levelWeight + 0.01)))
-        userVector.add(levelWeight * levelIdf)
-        courseVector.add(1.0 * levelIdf)
-
-        // Instructor similarity
         val instructorWeight = userProfile.instructorWeights[course.instructorId] ?: 0.0
-        val instructorIdf = ln(1.0 + (1.0 / (instructorWeight + 0.01)))
-        userVector.add(instructorWeight * instructorIdf)
-        courseVector.add(if (course.instructorId.isNotEmpty()) 1.0 * instructorIdf else 0.0)
 
-        // Add popularity boost (normalized)
-        val popularityScore = (course.rating / 5.0) * 0.5 + 
-                             (course.enrollmentCount.coerceAtMost(100) / 100.0) * 0.5
-        userVector.add(popularityScore)
-        courseVector.add(popularityScore)
+        val profileScore = (categoryWeight * 0.45) + (levelWeight * 0.30) + (instructorWeight * 0.25)
+        val popularityScore = (course.rating / 5.0) * 0.5 +
+            (course.enrollmentCount.coerceAtMost(100) / 100.0) * 0.5
 
-        // Calculate cosine similarity
-        val dotProduct = userVector.zip(courseVector).sumOf { (u, c) -> u * c }
-        val userMagnitude = sqrt(userVector.sumOf { it.pow(2) })
-        val courseMagnitude = sqrt(courseVector.sumOf { it.pow(2) })
-
-        return if (userMagnitude > 0 && courseMagnitude > 0) {
-            dotProduct / (userMagnitude * courseMagnitude)
-        } else {
-            0.0
-        }
+        return (profileScore * 0.7) + (popularityScore * 0.3)
     }
 
     private data class UserProfile(

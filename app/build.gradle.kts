@@ -33,6 +33,7 @@ android {
         val geminiApiKey = properties.getProperty("GEMINI_API_KEY") ?: ""
         val openrouterApiKey = properties.getProperty("OPENROUTER_API_KEY") ?: ""
         val momoFunctionBaseUrl = properties.getProperty("MOMO_FUNCTION_BASE_URL") ?: ""
+        val recommendationApiUrl = properties.getProperty("RECOMMENDATION_API_URL") ?: ""
         val adminUid = properties.getProperty("ADMIN_UID") ?: ""
         
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"$cloudName\"")
@@ -43,6 +44,7 @@ android {
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openrouterApiKey\"")
         buildConfigField("String", "MOMO_FUNCTION_BASE_URL", "\"$momoFunctionBaseUrl\"")
+        buildConfigField("String", "RECOMMENDATION_API_URL", "\"$recommendationApiUrl\"")
         buildConfigField("String", "ADMIN_UID", "\"$adminUid\"")
     }
 
