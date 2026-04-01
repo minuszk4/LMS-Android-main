@@ -225,6 +225,13 @@ fun AppNavGraph() {
                                     },
                                     onSuggestedCourseClick = { course ->
                                         navController.navigate("${Routes.COURSE_DETAIL}/${course.id}")
+                                    },
+                                    onInstructorClick = { instructorId, instructorName ->
+                                        val encodedInstructorId = Uri.encode(instructorId)
+                                        val encodedInstructorName = Uri.encode(instructorName)
+                                        navController.navigate(
+                                            "${Routes.INSTRUCTOR_PUBLIC_PROFILE}/$encodedInstructorId?instructorName=$encodedInstructorName"
+                                        )
                                     }
                                 )
                             }
@@ -400,6 +407,13 @@ fun AppNavGraph() {
                     viewModel = courseViewModel,
                     onCourseClick = { course ->
                         navController.navigate("${Routes.COURSE_DETAIL}/${course.id}")
+                    },
+                    onInstructorClick = { instructorId, instructorName ->
+                        val encodedInstructorId = Uri.encode(instructorId)
+                        val encodedInstructorName = Uri.encode(instructorName)
+                        navController.navigate(
+                            "${Routes.INSTRUCTOR_PUBLIC_PROFILE}/$encodedInstructorId?instructorName=$encodedInstructorName"
+                        )
                     }
                 )
             }
@@ -557,6 +571,13 @@ fun AppNavGraph() {
                             viewModel = myLearningViewModel,
                             onCourseClick = { courseId ->
                                 navController.navigate("${Routes.COURSE_DETAIL}/$courseId")
+                            },
+                            onInstructorClick = { instructorId, instructorName ->
+                                val encodedInstructorId = Uri.encode(instructorId)
+                                val encodedInstructorName = Uri.encode(instructorName)
+                                navController.navigate(
+                                    "${Routes.INSTRUCTOR_PUBLIC_PROFILE}/$encodedInstructorId?instructorName=$encodedInstructorName"
+                                )
                             },
                             onExploreCoursesClick = {
                                 navController.navigate(Routes.SEARCH) {

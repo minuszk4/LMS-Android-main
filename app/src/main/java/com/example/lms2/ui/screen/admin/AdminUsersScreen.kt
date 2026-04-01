@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -29,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.lms2.data.model.Course
 import com.example.lms2.data.model.User
+import com.example.lms2.data.model.UserRole
 import com.example.lms2.viewmodel.AdminManagementEvent
 import com.example.lms2.viewmodel.AdminManagementViewModel
 
@@ -57,9 +62,18 @@ fun AdminUsersScreen(
     var instructorFullName by rememberSaveable { mutableStateOf("") }
     var instructorEmail by rememberSaveable { mutableStateOf("") }
     var instructorPassword by rememberSaveable { mutableStateOf("") }
+    var selectedInstructor by remember { mutableStateOf<User?>(null) }
+
+    val selectedInstructorCourses by remember(selectedInstructor, uiState.courses) {
+        derivedStateOf {
+            val instructor = selectedInstructor ?: return@derivedStateOf emptyList()
+            uiState.courses.filter { it.instructorId == instructor.uid }
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadUsers()
+        viewModel.loadCourses()
     }
 
     LaunchedEffect(Unit) {
@@ -125,12 +139,24 @@ fun AdminUsersScreen(
                             UserManagementCard(
                                 user = user,
                                 disableToggle = uiState.isProcessing || user.uid == adminUid,
-                                onToggleActive = { viewModel.toggleUserActive(user) }
+                                onToggleActive = { viewModel.toggleUserActive(user) },
+                                onClickInstructorRole = {
+                                    selectedInstructor = user
+                                }
                             )
                         }
                     }
                 }
             }
+        }
+
+        selectedInstructor?.let { instructor ->
+            InstructorCoursesDialog(
+                instructor = instructor,
+                courses = selectedInstructorCourses,
+                isLoading = uiState.isLoadingCourses,
+                onDismiss = { selectedInstructor = null }
+            )
         }
     }
 }
@@ -194,7 +220,8 @@ private fun CreateInstructorCard(
 private fun UserManagementCard(
     user: User,
     disableToggle: Boolean,
-    onToggleActive: () -> Unit
+    onToggleActive: () -> Unit,
+    onClickInstructorRole: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -218,7 +245,21 @@ private fun UserManagementCard(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = {}, label = { Text("Vai trò: ${user.role.name}") })
+                    AssistChip(
+                        onClick = {
+                            if (user.role == UserRole.INSTRUCTOR) {
+                                onClickInstructorRole()
+                            }
+                        },
+                        label = {
+                            val roleText = if (user.role == UserRole.INSTRUCTOR) {
+                                "Vai trò: ${user.role.name} (xem khóa học)"
+                            } else {
+                                "Vai trò: ${user.role.name}"
+                            }
+                            Text(roleText)
+                        }
+                    )
                     AssistChip(onClick = {}, label = { Text(if (user.isActive) "Đang hoạt động" else "Đang bị khóa") })
                 }
 
@@ -234,4 +275,61 @@ private fun UserManagementCard(
             }
         }
     }
+}
+
+@Composable
+private fun InstructorCoursesDialog(
+    instructor: User,
+    courses: List<Course>,
+    isLoading: Boolean,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Khóa học của ${instructor.fullName}") },
+        text = {
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                courses.isEmpty() -> {
+                    Text("Giảng viên này chưa có khóa học")
+                }
+
+                else -> {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(courses, key = { it.id }) { course ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                AsyncImage(
+                                    model = course.thumbnailUrl.ifBlank { "https://picsum.photos/seed/fallback_course/640/360" },
+                                    contentDescription = course.title,
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(10.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(course.title, fontWeight = FontWeight.SemiBold)
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("${course.enrollmentCount} học viên", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Đóng")
+            }
+        }
+    )
 }

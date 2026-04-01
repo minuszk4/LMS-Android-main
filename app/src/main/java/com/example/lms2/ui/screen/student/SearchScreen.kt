@@ -1,6 +1,7 @@
 package com.example.lms2.ui.screen.student
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -47,7 +48,8 @@ private val CardWhite     = Color(0xFFFFFFFF)
 fun SearchScreen(
     navController: NavController,
     viewModel: CourseViewModel,
-    onCourseClick: (Course) -> Unit
+    onCourseClick: (Course) -> Unit,
+    onInstructorClick: (String, String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
@@ -172,7 +174,10 @@ fun SearchScreen(
                         SearchCourseCard(
                             course = course,
                             categories = displayCategories,
-                            onClick = { onCourseClick(course) }
+                            onClick = { onCourseClick(course) },
+                            onInstructorClick = { instructorId, instructorName ->
+                                onInstructorClick(instructorId, instructorName)
+                            }
                         )
                     }
 
@@ -234,7 +239,8 @@ private fun CategoryChip(
 private fun SearchCourseCard(
     course: Course,
     categories: List<Category>,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onInstructorClick: (String, String) -> Unit
 ) {
     Card(
         onClick = onClick,
@@ -268,6 +274,19 @@ private fun SearchCourseCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 21.sp
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = course.instructorName,
+                    fontSize = 12.sp,
+                    color = Indigo,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable(enabled = course.instructorId.isNotBlank()) {
+                        onInstructorClick(course.instructorId, course.instructorName)
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))

@@ -74,6 +74,7 @@ fun MyLearningRoute(
 	userId: String,
 	viewModel: MyLearningViewModel,
 	onCourseClick: (courseId: String) -> Unit,
+	onInstructorClick: (String, String) -> Unit,
 	onExploreCoursesClick: () -> Unit = {}
 ) {
 	val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -98,6 +99,7 @@ fun MyLearningRoute(
 			onLoadMoreInProgress = { viewModel.loadMoreInProgress(userId) },
 			onLoadMoreCompleted = { viewModel.loadMoreCompleted(userId) },
 			onCourseClick = { item -> onCourseClick(item.course.id) },
+			onInstructorClick = onInstructorClick,
 			onExploreCoursesClick = onExploreCoursesClick
 		)
 
@@ -117,6 +119,7 @@ fun MyLearningScreen(
 	onLoadMoreInProgress: () -> Unit,
 	onLoadMoreCompleted: () -> Unit,
 	onCourseClick: (MyLearningItem) -> Unit,
+	onInstructorClick: (String, String) -> Unit,
 	onExploreCoursesClick: () -> Unit = {},
 	onBackClick: () -> Unit = {}
 ) {
@@ -191,7 +194,10 @@ fun MyLearningScreen(
 						items(uiState.visibleCourses, key = { it.course.id }) { item ->
 							MyLearningCourseCard(
 								item = item,
-								onClick = { onCourseClick(item) }
+								onClick = { onCourseClick(item) },
+								onInstructorClick = { instructorId, instructorName ->
+									onInstructorClick(instructorId, instructorName)
+								}
 							)
 						}
 
@@ -265,7 +271,8 @@ private fun MyLearningTabs(
 @Composable
 private fun MyLearningCourseCard(
 	item: MyLearningItem,
-	onClick: () -> Unit
+	onClick: () -> Unit,
+	onInstructorClick: (String, String) -> Unit
 ) {
 	Card(
 		onClick = onClick,
@@ -298,10 +305,13 @@ private fun MyLearningCourseCard(
 
 					Text(
 						text = item.course.instructorName,
-						color = TextSecondary,
+						color = Indigo,
 						fontSize = 12.sp,
 						maxLines = 1,
-						overflow = TextOverflow.Ellipsis
+						overflow = TextOverflow.Ellipsis,
+						modifier = Modifier.clickable(enabled = item.course.instructorId.isNotBlank()) {
+							onInstructorClick(item.course.instructorId, item.course.instructorName)
+						}
 					)
 				}
 

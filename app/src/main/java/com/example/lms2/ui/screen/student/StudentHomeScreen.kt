@@ -70,7 +70,8 @@ fun StudentHomeRoute(
     onSeeAllClick: () -> Unit,
     onContinueClick: (MyLearningItem) -> Unit,
     onMyCourseClick: (MyLearningItem) -> Unit,
-    onSuggestedCourseClick: (Course) -> Unit
+    onSuggestedCourseClick: (Course) -> Unit,
+    onInstructorClick: (String, String) -> Unit
 ) {
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val courseUiState by courseViewModel.uiState.collectAsStateWithLifecycle()
@@ -109,7 +110,8 @@ fun StudentHomeRoute(
         onSeeAllClick = onSeeAllClick,
         onContinueClick = onContinueClick,
         onMyCourseClick = onMyCourseClick,
-        onSuggestedCourseClick = onSuggestedCourseClick
+        onSuggestedCourseClick = onSuggestedCourseClick,
+        onInstructorClick = onInstructorClick
     )
 }
 
@@ -128,7 +130,8 @@ fun StudentHomeScreen(
     onSeeAllClick: () -> Unit,
     onContinueClick: (MyLearningItem) -> Unit,
     onMyCourseClick: (MyLearningItem) -> Unit,
-    onSuggestedCourseClick: (Course) -> Unit
+    onSuggestedCourseClick: (Course) -> Unit,
+    onInstructorClick: (String, String) -> Unit
 ) {
     HomeStatusBar(color = CardWhite, darkIcons = true)
 
@@ -204,6 +207,9 @@ fun StudentHomeScreen(
                         item = it,
                         onClick = {
                             onMyCourseClick(it)
+                        },
+                        onInstructorClick = { instructorId, instructorName ->
+                            onInstructorClick(instructorId, instructorName)
                         }
                     )
                 }
@@ -223,6 +229,9 @@ fun StudentHomeScreen(
                 SuggestedCourseCard(
                     course = course,
                     onClick = { onSuggestedCourseClick(course) },
+                    onInstructorClick = { instructorId, instructorName ->
+                        onInstructorClick(instructorId, instructorName)
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
@@ -408,7 +417,11 @@ private fun ContinueLearningCard(item: MyLearningItem, onContinueClick: () -> Un
 }
 
 @Composable
-private fun MyCourseCard(item: MyLearningItem, onClick: () -> Unit) {
+private fun MyCourseCard(
+    item: MyLearningItem,
+    onClick: () -> Unit,
+    onInstructorClick: (String, String) -> Unit
+) {
     Card(
         modifier = Modifier.width(155.dp),
         shape = RoundedCornerShape(12.dp),
@@ -424,6 +437,16 @@ private fun MyCourseCard(item: MyLearningItem, onClick: () -> Unit) {
             }
             Column(Modifier.padding(10.dp)) {
                 Text(item.course.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp)
+                Text(
+                    text = item.course.instructorName,
+                    fontSize = 11.sp,
+                    color = Indigo,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable(enabled = item.course.instructorId.isNotBlank()) {
+                        onInstructorClick(item.course.instructorId, item.course.instructorName)
+                    }
+                )
                 val total = item.totalLessons.coerceAtLeast(0)
                 Text("${item.completedLessons}/$total Bài học", fontSize = 11.sp, color = TextSecondary)
                 Spacer(Modifier.height(6.dp))
@@ -437,6 +460,7 @@ private fun MyCourseCard(item: MyLearningItem, onClick: () -> Unit) {
 private fun SuggestedCourseCard(
     course: Course,
     onClick: () -> Unit,
+    onInstructorClick: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -488,9 +512,12 @@ private fun SuggestedCourseCard(
                     Text(
                         text = course.instructorName,
                         fontSize = 12.sp,
-                        color = TextSecondary,
+                        color = Indigo,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable(enabled = course.instructorId.isNotBlank()) {
+                            onInstructorClick(course.instructorId, course.instructorName)
+                        }
                     )
                 }
 
