@@ -95,12 +95,18 @@ class QuizViewModel(
         }
     }
 
-    fun importQuestionsFromFile(inputStream: InputStream, fileName: String?) {
+    fun importQuestionsFromFile(inputStream: InputStream, fileName: String?, mimeType: String?) {
         viewModelScope.launch {
             _uiState.update { it.copy(isImporting = true, questionsError = null) }
             try {
                 val ext = fileName?.substringAfterLast('.', "")?.lowercase()
-                val questions = if (ext == "csv") {
+                val normalizedMimeType = mimeType?.lowercase()
+                val isCsvByMime = normalizedMimeType == "text/csv" ||
+                    normalizedMimeType == "application/csv" ||
+                    normalizedMimeType == "text/comma-separated-values" ||
+                    normalizedMimeType == "text/plain"
+
+                val questions = if (ext == "csv" || isCsvByMime) {
                     parseCsvQuestions(inputStream)
                 } else {
                     sendEvent(QuizEvent.ShowSnackbar("Hiện chỉ hỗ trợ CSV, hãy xuất Excel ra CSV rồi nhập lại"))

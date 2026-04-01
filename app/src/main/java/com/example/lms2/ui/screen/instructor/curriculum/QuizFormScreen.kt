@@ -1,6 +1,7 @@
 package com.example.lms2.ui.screen.instructor.curriculum
 
 import android.content.Intent
+import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,8 +59,19 @@ fun QuizFormScreen(
             }
 
             runCatching {
+                val resolver = context.contentResolver
+                val fileName = resolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+                }
+                val mimeType = resolver.getType(uri)
+
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    viewModel.importQuestionsFromFile(inputStream, uri.lastPathSegment)
+                    viewModel.importQuestionsFromFile(
+                        inputStream = inputStream,
+                        fileName = fileName,
+                        mimeType = mimeType
+                    )
                 }
             }.onFailure {
                 Toast.makeText(context, "Không đọc được file đã chọn", Toast.LENGTH_SHORT).show()
@@ -148,9 +160,7 @@ fun QuizFormScreen(
                         onClick = {
                             importLauncher.launch(
                                 arrayOf(
-                                    "text/csv",
-                                    "application/vnd.ms-excel",
-                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                    "*/*"
                                 )
                             )
                         },
