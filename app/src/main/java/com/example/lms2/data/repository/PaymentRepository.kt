@@ -77,6 +77,12 @@ class PaymentRepository {
         selectedCourseIds: List<String> = emptyList()
     ): ResultState<Order> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
+        if (auth.currentUser?.uid.isNullOrBlank()) {
+            return ResultState.Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại")
+        }
+        if (auth.currentUser?.uid != userId) {
+            return ResultState.Error("Người dùng hiện tại không hợp lệ, vui lòng đăng nhập lại")
+        }
 
         return try {
             val snapshot = cartItemsCollection
@@ -136,6 +142,12 @@ class PaymentRepository {
         courseIds: List<String>
     ): ResultState<Order> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
+        if (auth.currentUser?.uid.isNullOrBlank()) {
+            return ResultState.Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại")
+        }
+        if (auth.currentUser?.uid != userId) {
+            return ResultState.Error("Người dùng hiện tại không hợp lệ, vui lòng đăng nhập lại")
+        }
 
         val normalizedCourseIds = courseIds
             .map { it.trim() }
