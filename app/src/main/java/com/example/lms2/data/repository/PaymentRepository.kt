@@ -189,10 +189,12 @@ class PaymentRepository {
                         ResolvedCheckoutItem(
                             courseId = courseId,
                             instructorId = course.instructorId,
-                            courseTitle = cartItem.courseTitle,
-                            coursePrice = cartItem.coursePrice,
+                            // Always charge using latest course snapshot to avoid stale cart prices.
+                            courseTitle = course.title,
+                            coursePrice = course.price,
                             courseRefPath = courseRef.path,
                             enrollmentCount = course.enrollmentCount.toLong(),
+                            // Keep original cart item price only for cart total adjustment.
                             cartItemPriceToRemove = cartItem.coursePrice
                         )
                     } else {

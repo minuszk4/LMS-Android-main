@@ -101,7 +101,39 @@ class PaymentViewModel(
                 if (selectedItems.size != selectedSet.size) {
                     ResultState.Error("Một số khóa học đã không còn trong giỏ hàng, vui lòng quay lại")
                 } else {
-                    ResultState.Success(selectedItems)
+                    try {
+                        val latestCoursesById = coroutineScope {
+                            selectedItems.map { item ->
+                                async {
+                                    when (val courseResult = courseRepository.getCourseById(item.courseId)) {
+                                        is ResultState.Success -> courseResult.data
+                                        is ResultState.Error -> throw IllegalStateException(courseResult.message)
+                                        else -> throw IllegalStateException("Không tải được thông tin khóa học")
+                                    }
+                                }
+                            }.awaitAll().associateBy { it.id }
+                        }
+
+                        // Override cart snapshot values with latest course values.
+                        val normalizedItems = selectedItems.map { item ->
+                            val latestCourse = latestCoursesById[item.courseId]
+                            if (latestCourse != null) {
+                                item.copy(
+                                    courseTitle = latestCourse.title,
+                                    coursePrice = latestCourse.price,
+                                    courseThumbnail = latestCourse.thumbnailUrl
+                                )
+                            } else {
+                                item
+                            }
+                        }
+
+                        ResultState.Success(normalizedItems)
+                    } catch (e: IllegalStateException) {
+                        ResultState.Error(e.message ?: "Tải dữ liệu thanh toán thất bại")
+                    } catch (e: Exception) {
+                        ResultState.Error(e.message ?: "Tải dữ liệu thanh toán thất bại")
+                    }
                 }
             }
 

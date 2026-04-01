@@ -12,6 +12,7 @@ import com.example.lms2.data.model.QuizProgress
 import com.example.lms2.util.InstructorTimeRange
 import com.example.lms2.util.ResultState
 import com.example.lms2.util.toStartAtMillis
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
@@ -24,6 +25,7 @@ class InstructorAnalyticsRepository {
     private val firestore = FirebaseFirestore.getInstance()
     private val coursesCollection = firestore.collection("courses")
     private val enrollmentsCollection = firestore.collection("enrollments")
+    private val ordersCollection = firestore.collection("orders")
     private val orderItemsCollection = firestore.collection("orderItems")
     private val progressCollection = firestore.collection("progress")
     private val quizProgressCollection = firestore.collection("quizProgress")
@@ -63,6 +65,9 @@ class InstructorAnalyticsRepository {
             val weightedRating = courses.sumOf { it.rating * it.reviewCount }
             val averageRating = if (totalReviews > 0) weightedRating / totalReviews else 0.0
             val estimatedRevenue = orderItems.sumOf { it.coursePrice }
+            val revenueByCourseId = orderItems
+                .groupBy { it.courseId }
+                .mapValues { entry -> entry.value.sumOf { it.coursePrice } }
 
             val completedProgressCount = progresses.count { it.isCompleted }
             val completionRate = if (progresses.isEmpty()) {
@@ -87,7 +92,7 @@ class InstructorAnalyticsRepository {
                         enrollments = enrollments.count { it.courseId == course.id },
                         rating = course.rating,
                         reviewCount = course.reviewCount,
-                        revenue = course.price
+                        revenue = revenueByCourseId[course.id] ?: 0.0
                     )
                 }
                 .sortedByDescending { it.enrollments }
@@ -155,7 +160,23 @@ class InstructorAnalyticsRepository {
             all += query.get().await().toObjects(OrderItem::class.java)
         }
 
-        return all
+        val successfulOrderIds = mutableSetOf<String>()
+        all.map { it.orderId }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .chunked(10)
+            .forEach { chunk ->
+                val ordersSnapshot = ordersCollection
+                    .whereIn(FieldPath.documentId(), chunk)
+                    .get()
+                    .await()
+
+                successfulOrderIds += ordersSnapshot.documents
+                    .filter { (it.getString("paymentStatus") ?: "").equals("SUCCESS", ignoreCase = true) }
+                    .map { it.id }
+            }
+
+        return all.filter { successfulOrderIds.contains(it.orderId) }
     }
 
     private suspend fun fetchProgresses(courseIds: List<String>, startAt: Long?): List<Progress> {

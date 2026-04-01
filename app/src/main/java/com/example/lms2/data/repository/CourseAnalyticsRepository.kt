@@ -1,9 +1,11 @@
 package com.example.lms2.data.repository
 
 import com.example.lms2.data.model.CourseAnalyticsData
+import com.example.lms2.data.model.OrderItem
 import com.example.lms2.data.model.Progress
 import com.example.lms2.data.model.QuizProgress
 import com.example.lms2.util.ResultState
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
@@ -14,6 +16,7 @@ class CourseAnalyticsRepository(
 
     private val firestore = FirebaseFirestore.getInstance()
     private val enrollmentsCollection = firestore.collection("enrollments")
+    private val ordersCollection = firestore.collection("orders")
     private val orderItemsCollection = firestore.collection("orderItems")
     private val progressCollection = firestore.collection("progress")
     private val quizProgressCollection = firestore.collection("quizProgress")
@@ -39,8 +42,9 @@ class CourseAnalyticsRepository(
                 .whereEqualTo("courseId", courseId)
                 .get()
                 .await()
-            val estimatedRevenue = orderItemsSnapshot.documents
-                .sumOf { it.getDouble("coursePrice") ?: 0.0 }
+            val orderItems = orderItemsSnapshot.toObjects(OrderItem::class.java)
+            val paidOrderItems = filterSuccessfulOrderItems(orderItems)
+            val estimatedRevenue = paidOrderItems.sumOf { it.coursePrice }
 
             val progressSnapshot = progressCollection
                 .whereEqualTo("courseId", courseId)
@@ -84,6 +88,28 @@ class CourseAnalyticsRepository(
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Tải thống kê khóa học thất bại")
         }
+    }
+
+    private suspend fun filterSuccessfulOrderItems(items: List<OrderItem>): List<OrderItem> {
+        if (items.isEmpty()) return emptyList()
+
+        val successfulOrderIds = mutableSetOf<String>()
+        items.map { it.orderId }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .chunked(10)
+            .forEach { chunk ->
+                val ordersSnapshot = ordersCollection
+                    .whereIn(FieldPath.documentId(), chunk)
+                    .get()
+                    .await()
+
+                successfulOrderIds += ordersSnapshot.documents
+                    .filter { (it.getString("paymentStatus") ?: "").equals("SUCCESS", ignoreCase = true) }
+                    .map { it.id }
+            }
+
+        return items.filter { successfulOrderIds.contains(it.orderId) }
     }
 }
 

@@ -31,18 +31,18 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const DEFAULT_IPN_FIELDS = [
+  "partnerCode",
+  "requestId",
   "amount",
-  "extraData",
-  "message",
   "orderId",
   "orderInfo",
   "orderType",
-  "partnerCode",
-  "payType",
-  "requestId",
-  "responseTime",
+  "transId",
   "resultCode",
-  "transId"
+  "message",
+  "payType",
+  "responseTime",
+  "extraData"
 ];
 
 const DEFAULT_MOMO_CREATE_URL = "https://test-payment.momo.vn/v2/gateway/api/create";
@@ -140,6 +140,14 @@ function verifyMomoSignature(payload) {
   const rawSignature = buildRawSignature(payload, fieldList);
   const calculated = crypto.createHmac("sha256", secretKey).update(rawSignature).digest("hex");
   const ok = calculated === incomingSignature;
+
+  console.log("[verifyMomoSignature] Debug info", {
+    incomingSignature,
+    calculated,
+    fieldList,
+    rawSignature,
+    secretKeyLength: secretKey.length
+  });
 
   return {
     ok,
