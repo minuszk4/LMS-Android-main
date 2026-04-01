@@ -3,6 +3,7 @@ package com.example.lms2.viewmodel
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lms2.data.model.InstructorApplication
 import com.example.lms2.data.model.UserRole
 import com.example.lms2.data.repository.AuthRepository
 import com.example.lms2.util.CloudinaryManager
@@ -306,7 +307,7 @@ class AuthViewModel(
         _uiState.value = AuthUiState()
     }
 
-    fun submitInstructorApplication() {
+    fun submitInstructorApplication(application: InstructorApplication) {
         val user = _uiState.value.currentUser
         if (user == null) {
             viewModelScope.launch {
@@ -323,7 +324,7 @@ class AuthViewModel(
         }
 
         viewModelScope.launch {
-            when (val result = repository.submitInstructorApplication(user.uid)) {
+            when (val result = repository.submitInstructorApplication(user.uid, application)) {
                 is ResultState.Success -> {
                     getCurrentUser()
                     _event.emit(AuthEvent.InstructorApplicationSubmitted)

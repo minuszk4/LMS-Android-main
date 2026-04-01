@@ -55,6 +55,7 @@ android {
                 "META-INF/NOTICE",
                 "META-INF/NOTICE.md",
                 "META-INF/NOTICE.txt",
+                "META-INF/DEPENDENCIES",
                 "META-INF/*.kotlin_module"
             )
         }
@@ -72,6 +73,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -80,6 +82,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation(libs.androidx.databinding.compiler)
 
     // Core
@@ -115,7 +118,7 @@ dependencies {
 
     // Cloudinary
     implementation("com.cloudinary:cloudinary-android:2.3.1")
-    
+
     // Modern Google Sign In (Credential Manager)
     implementation("androidx.credentials:credentials:1.2.2")
     implementation("androidx.credentials:credentials-play-services-auth:1.2.2")

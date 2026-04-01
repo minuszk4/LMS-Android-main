@@ -78,6 +78,43 @@ object CloudinaryManager {
         }
     }
 
+    suspend fun uploadVideo(uri: Uri, fileName: String): ResultState<String> =
+        suspendCancellableCoroutine { continuation ->
+            try {
+                MediaManager.get().upload(uri)
+                    .unsigned(BuildConfig.CLOUDINARY_UPLOAD_PRESET)
+                    .option("resource_type", "video")
+                    .option("public_id", fileName)
+                    .callback(object : UploadCallback {
+                        override fun onStart(requestId: String) {}
+                        override fun onProgress(requestId: String, bytes: Long, totalBytes: Long) {}
+                        override fun onSuccess(requestId: String, resultData: Map<*, *>) {
+                            val url = resultData["secure_url"] as? String
+                            if (continuation.isActive) {
+                                if (url != null) {
+                                    continuation.resume(ResultState.Success(url))
+                                } else {
+                                    continuation.resume(ResultState.Error("Không lấy được URL"))
+                                }
+                            }
+                        }
+                        override fun onError(requestId: String, error: ErrorInfo) {
+                            if (continuation.isActive) {
+                                continuation.resume(
+                                    ResultState.Error(mapUploadError(error.description))
+                                )
+                            }
+                        }
+                        override fun onReschedule(requestId: String, error: ErrorInfo) {}
+                    })
+                    .dispatch()
+            } catch (e: Exception) {
+                if (continuation.isActive) {
+                    continuation.resume(ResultState.Error(e.message ?: "Lỗi hệ thống"))
+                }
+            }
+        }
+
     suspend fun uploadFile(uri: Uri, fileName: String): ResultState<String> =
         suspendCancellableCoroutine { continuation ->
             try {

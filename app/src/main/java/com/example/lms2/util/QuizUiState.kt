@@ -14,6 +14,7 @@ data class QuizUiState(
     
     // UI Status
     val isSaving: Boolean = false,
+    val isImporting: Boolean = false,
     val isEditMode: Boolean = false,
     
     // Validation Errors

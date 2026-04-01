@@ -32,6 +32,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,15 +53,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.lms2.data.model.InstructorApplication
 import com.example.lms2.data.model.InstructorApplicationStatus
 import com.example.lms2.data.model.UserRole
 import coil.compose.AsyncImage
 import com.example.lms2.util.AuthEvent
 import com.example.lms2.viewmodel.AuthViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +79,7 @@ fun StudentProfileScreen(
 ) {
 	val uiState by authViewModel.uiState.collectAsStateWithLifecycle()
 	val snackbarHostState = remember { SnackbarHostState() }
+	val coroutineScope = rememberCoroutineScope()
 	val actionItems = remember {
 		listOf(
 			StudentProfileActionItem("Thông tin tài khoản", Icons.Default.Person),
@@ -84,6 +91,27 @@ fun StudentProfileScreen(
 
 	var showLogoutDialog by remember { mutableStateOf(false) }
 	var isLoggingOut by remember { mutableStateOf(false) }
+	var showInstructorDialog by remember { mutableStateOf(false) }
+
+	var expertise by remember { mutableStateOf("") }
+	var experienceYears by remember { mutableStateOf("") }
+	var qualification by remember { mutableStateOf("") }
+	var bio by remember { mutableStateOf("") }
+	var portfolioUrl by remember { mutableStateOf("") }
+	var bankAccountName by remember { mutableStateOf("") }
+	var bankAccountNumber by remember { mutableStateOf("") }
+	var bankName by remember { mutableStateOf("") }
+
+	fun resetInstructorForm() {
+		expertise = ""
+		experienceYears = ""
+		qualification = ""
+		bio = ""
+		portfolioUrl = ""
+		bankAccountName = ""
+		bankAccountNumber = ""
+		bankName = ""
+	}
 
 	LaunchedEffect(isLoggingOut) {
 		if (isLoggingOut) {
@@ -97,7 +125,11 @@ fun StudentProfileScreen(
 		authViewModel.event.collect { event ->
 			when (event) {
 				is AuthEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
-				AuthEvent.InstructorApplicationSubmitted -> snackbarHostState.showSnackbar("Đã gửi đơn đăng ký giảng viên")
+				AuthEvent.InstructorApplicationSubmitted -> {
+					showInstructorDialog = false
+					resetInstructorForm()
+					snackbarHostState.showSnackbar("Đã gửi đơn đăng ký giảng viên")
+				}
 				else -> Unit
 			}
 		}
@@ -204,7 +236,7 @@ fun StudentProfileScreen(
 					}
 
 					Button(
-						onClick = { authViewModel.submitInstructorApplication() },
+						onClick = { showInstructorDialog = true },
 						enabled = requestStatus != InstructorApplicationStatus.PENDING && requestStatus != InstructorApplicationStatus.APPROVED,
 						modifier = Modifier
 							.fillMaxWidth()
@@ -228,6 +260,115 @@ fun StudentProfileScreen(
 						}
 
 					Spacer(modifier = Modifier.height(16.dp))
+				}
+
+				if (showInstructorDialog) {
+					AlertDialog(
+						onDismissRequest = { showInstructorDialog = false },
+						title = { Text("Đăng ký làm giảng viên", fontWeight = FontWeight.Bold) },
+						text = {
+							Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+								OutlinedTextField(
+									value = expertise,
+									onValueChange = { expertise = it },
+									label = { Text("Chuyên môn chính *") },
+									singleLine = true,
+									modifier = Modifier.fillMaxWidth()
+								)
+
+								OutlinedTextField(
+									value = experienceYears,
+									onValueChange = { experienceYears = it.filter { ch -> ch.isDigit() } },
+									label = { Text("Số năm kinh nghiệm *") },
+									singleLine = true,
+									keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+									modifier = Modifier.fillMaxWidth()
+								)
+
+								OutlinedTextField(
+									value = qualification,
+									onValueChange = { qualification = it },
+									label = { Text("Bằng cấp/chứng chỉ *") },
+									singleLine = true,
+									modifier = Modifier.fillMaxWidth()
+								)
+
+								OutlinedTextField(
+									value = bio,
+									onValueChange = { bio = it },
+									label = { Text("Mô tả kinh nghiệm *") },
+									modifier = Modifier
+										.fillMaxWidth()
+										.height(100.dp)
+								)
+
+								OutlinedTextField(
+									value = portfolioUrl,
+									onValueChange = { portfolioUrl = it },
+									label = { Text("Portfolio/Website *") },
+									singleLine = true,
+									modifier = Modifier.fillMaxWidth()
+								)
+
+								OutlinedTextField(
+									value = bankAccountName,
+									onValueChange = { bankAccountName = it },
+									label = { Text("Tên chủ tài khoản (tuỳ chọn)") },
+									singleLine = true,
+									modifier = Modifier.fillMaxWidth()
+								)
+
+								OutlinedTextField(
+									value = bankAccountNumber,
+									onValueChange = { bankAccountNumber = it.filter { ch -> ch.isDigit() } },
+									label = { Text("Số tài khoản (tuỳ chọn)") },
+									singleLine = true,
+									modifier = Modifier.fillMaxWidth()
+								)
+
+								OutlinedTextField(
+									value = bankName,
+									onValueChange = { bankName = it },
+									label = { Text("Ngân hàng (tuỳ chọn)") },
+									singleLine = true,
+									modifier = Modifier.fillMaxWidth()
+								)
+							}
+						},
+						confirmButton = {
+							TextButton(onClick = {
+								val expYears = experienceYears.toIntOrNull()
+								if (expertise.isBlank() || qualification.isBlank() || bio.isBlank() || portfolioUrl.isBlank() || expYears == null || expYears <= 0) {
+									coroutineScope.launch {
+										snackbarHostState.showSnackbar("Vui lòng điền đầy đủ thông tin bắt buộc")
+									}
+									return@TextButton
+								}
+
+								authViewModel.submitInstructorApplication(
+									InstructorApplication(
+										expertise = expertise,
+										experienceYears = expYears,
+										qualification = qualification,
+										bio = bio,
+										portfolioUrl = portfolioUrl,
+										bankAccountName = bankAccountName,
+										bankAccountNumber = bankAccountNumber,
+										bankName = bankName
+									)
+								)
+							}) {
+								Text("Gửi đơn")
+							}
+						},
+						dismissButton = {
+							TextButton(onClick = {
+								showInstructorDialog = false
+							}) {
+								Text("Hủy")
+							}
+						}
+					)
 				}
 
 				OutlinedButton(

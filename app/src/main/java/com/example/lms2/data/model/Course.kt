@@ -9,6 +9,7 @@ data class Course(
     val instructorName: String = "",
     val thumbnailUrl: String = "",
     val thumbnailPublicId: String = "",
+    val introVideoUrl: String = "",
     val description: String = "",
     val categoryId: String = "",
     val level: CourseLevel = CourseLevel.BEGINNER,

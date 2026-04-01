@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.InputStream
 import java.util.UUID
 
 class QuizViewModel(
@@ -94,6 +95,33 @@ class QuizViewModel(
         }
     }
 
+    fun importQuestionsFromFile(inputStream: InputStream, fileName: String?) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isImporting = true, questionsError = null) }
+            try {
+                val ext = fileName?.substringAfterLast('.', "")?.lowercase()
+                val questions = if (ext == "csv") {
+                    parseCsvQuestions(inputStream)
+                } else {
+                    sendEvent(QuizEvent.ShowSnackbar("Hiện chỉ hỗ trợ CSV, hãy xuất Excel ra CSV rồi nhập lại"))
+                    return@launch
+                }
+
+                if (questions.isEmpty()) {
+                    sendEvent(QuizEvent.ShowSnackbar("File không có câu hỏi hợp lệ"))
+                    return@launch
+                }
+
+                _uiState.update { it.copy(questions = questions, questionsError = null) }
+                sendEvent(QuizEvent.ShowSnackbar("Đã nhập ${questions.size} câu hỏi"))
+            } catch (e: Exception) {
+                sendEvent(QuizEvent.ShowSnackbar("Không thể đọc file: ${e.message ?: "Lỗi không xác định"}"))
+            } finally {
+                _uiState.update { it.copy(isImporting = false) }
+            }
+        }
+    }
+
     fun save() {
         if (!validate()) return
 
@@ -161,6 +189,45 @@ class QuizViewModel(
         }
 
         return isValid
+    }
+
+    private fun parseCsvQuestions(inputStream: InputStream): List<Question> {
+        return inputStream.bufferedReader().useLines { lines ->
+            lines
+                .drop(1) // skip header
+                .mapNotNull { line ->
+                    val cols = line.split(',').map { it.trim() }
+                    if (cols.size < 6) return@mapNotNull null
+                    val questionText = cols[0]
+                    val options = cols.subList(1, 5)
+                    if (questionText.isBlank() || options.any { it.isBlank() }) return@mapNotNull null
+                    val correctIndex = parseCorrectIndex(cols[5])
+
+                    Question(
+                        id = UUID.randomUUID().toString(),
+                        text = questionText,
+                        options = options,
+                        correctAnswerIndex = correctIndex
+                    )
+                }
+                .toList()
+        }
+    }
+
+    private fun parseCorrectIndex(raw: String): Int {
+        val value = raw.trim()
+        if (value.isBlank()) return 0
+
+        val numeric = value.toIntOrNull()
+        if (numeric != null && numeric in 1..4) return numeric - 1
+
+        return when (value.first().uppercaseChar()) {
+            'A' -> 0
+            'B' -> 1
+            'C' -> 2
+            'D' -> 3
+            else -> 0
+        }
     }
 
     private fun sendEvent(event: QuizEvent) {

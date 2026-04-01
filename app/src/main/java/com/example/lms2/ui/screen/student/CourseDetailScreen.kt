@@ -221,7 +221,7 @@ private fun CourseDetailContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(paddingValues),
     ) {
-        item { VideoPlayer(videoUrl = "https://res.cloudinary.com/da0drkqms/video/upload/v1774554757/video_1774554616120_ubzane.mp4") }
+        item { IntroMediaSection(course) }
         item {
             val categoryName = uiState.categories.find { it.id == course.categoryId }?.name ?: "Chưa phân loại"
             CourseInfoSection(course = course, categoryName = categoryName)
@@ -259,12 +259,52 @@ private fun CourseDetailContent(
 }
 
 @Composable
-private fun VideoPlayer(videoUrl: String) {
+private fun IntroMediaSection(course: Course) {
+    val hasIntroVideo = course.introVideoUrl.isNotBlank()
+    var showVideo by rememberSaveable(course.id) { mutableStateOf(false) }
+
+    if (hasIntroVideo && showVideo) {
+        IntroVideoPlayer(videoUrl = course.introVideoUrl, autoPlay = true)
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp)
+                .background(Color.Black.copy(alpha = 0.05f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (course.thumbnailUrl.isNotBlank()) {
+                AsyncImage(
+                    model = course.thumbnailUrl,
+                    contentDescription = "Course thumbnail",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(text = "Chưa có video giới thiệu", color = TextSecondary)
+            }
+
+            if (hasIntroVideo) {
+                IconButton(
+                    onClick = { showVideo = true },
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(Color.Black.copy(alpha = 0.35f), CircleShape)
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Phát video", tint = Color.White, modifier = Modifier.size(32.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IntroVideoPlayer(videoUrl: String, autoPlay: Boolean) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var shouldHide by remember { mutableStateOf(false) }
     var playbackPositionMs by rememberSaveable(videoUrl) { mutableLongStateOf(0L) }
-    var playbackWhenReady by rememberSaveable(videoUrl) { mutableStateOf(false) }
+    var playbackWhenReady by rememberSaveable(videoUrl) { mutableStateOf(autoPlay) }
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build()

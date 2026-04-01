@@ -39,9 +39,11 @@ import com.example.lms2.data.model.CourseLevel
 import com.example.lms2.ui.component.FormFieldWithValidation
 import com.example.lms2.ui.component.SectionCard
 import com.example.lms2.ui.component.TopBar
+import com.example.lms2.util.CloudinaryManager
 import com.example.lms2.util.CourseEvent
 import com.example.lms2.viewmodel.AuthViewModel
 import com.example.lms2.viewmodel.CourseViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun CourseFormScreen(
@@ -53,6 +55,7 @@ fun CourseFormScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val isEditMode = uiState.currentCourse != null
 
     var title by remember(uiState.currentCourse) { mutableStateOf(uiState.currentCourse?.title ?: "") }
@@ -64,6 +67,28 @@ fun CourseFormScreen(
     var isPublished by remember(uiState.currentCourse) { mutableStateOf(uiState.currentCourse?.isPublished ?: false) }
     var thumbnailUrl by remember(uiState.currentCourse) { mutableStateOf(uiState.currentCourse?.thumbnailUrl ?: "") }
     var isFree by remember(uiState.currentCourse) { mutableStateOf(uiState.currentCourse?.price == 0.0 && uiState.currentCourse != null) }
+    var introVideoUrl by remember(uiState.currentCourse) { mutableStateOf(uiState.currentCourse?.introVideoUrl ?: "") }
+    var isUploadingIntroVideo by remember { mutableStateOf(false) }
+
+    val introVideoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            coroutineScope.launch {
+                isUploadingIntroVideo = true
+                when (val uploadResult = CloudinaryManager.uploadVideo(it, "intro_${System.currentTimeMillis()}")) {
+                    is com.example.lms2.util.ResultState.Success -> {
+                        introVideoUrl = uploadResult.data
+                        viewModel.onIntroVideoUrlChange()
+                        Toast.makeText(context, "Tải video lên Cloudinary thành công", Toast.LENGTH_SHORT).show()
+                    }
+                    is com.example.lms2.util.ResultState.Error -> {
+                        Toast.makeText(context, uploadResult.message, Toast.LENGTH_SHORT).show()
+                    }
+                    else -> {}
+                }
+                isUploadingIntroVideo = false
+            }
+        }
+    }
 
     var showLevelPicker by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
@@ -129,6 +154,39 @@ fun CourseFormScreen(
                         minLines = 3,
                         error = uiState.descriptionError
                     )
+
+                    FormFieldWithValidation(
+                        label = "Link video giới thiệu (YouTube/mp4)",
+                        value = introVideoUrl,
+                        onValueChange = { introVideoUrl = it; viewModel.onIntroVideoUrlChange() },
+                        placeholder = "Dán link YouTube hoặc mp4...",
+                        keyboardType = KeyboardType.Uri,
+                        error = uiState.introVideoUrlError
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(
+                            onClick = { introVideoPicker.launch("video/*") },
+                            enabled = !isUploadingIntroVideo,
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                        ) {
+                            if (isUploadingIntroVideo) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Đang tải video...")
+                            } else {
+                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF4B5CC4))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Upload video lên Cloudinary")
+                            }
+                        }
+                        Text(
+                            text = "Tuỳ chọn: để trống nếu dùng link có sẵn",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
                     
                     val selectedCategory = uiState.categories.find { it.id == categoryId }
                     SelectableFieldWithValidation(
@@ -243,6 +301,7 @@ fun CourseFormScreen(
                         price = if(isFree) 0.0 else (price.toDoubleOrNull() ?: 0.0),
                         duration = duration, level = level, categoryId = categoryId, 
                         isPublished = isPublished, thumbnailUrl = thumbnailUrl, 
+                        introVideoUrl = introVideoUrl,
                         instructorId = instructorId, instructorName = instructorName
                     )
                     if (isEditMode) viewModel.updateCourse(course, isFree, price) else viewModel.createCourse(course, isFree, price)

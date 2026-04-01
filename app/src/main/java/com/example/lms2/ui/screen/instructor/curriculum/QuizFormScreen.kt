@@ -1,6 +1,9 @@
 package com.example.lms2.ui.screen.instructor.curriculum
 
+import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -11,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +43,29 @@ fun QuizFormScreen(
     val context = LocalContext.current
     val primaryIndigo = Color(0xFF4B5CC4)
     var questionToDelete by remember { mutableStateOf<Question?>(null) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) {
+                // Ignore if permission not persistable
+            }
+
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    viewModel.importQuestionsFromFile(inputStream, uri.lastPathSegment)
+                }
+            }.onFailure {
+                Toast.makeText(context, "Không đọc được file đã chọn", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
@@ -108,7 +135,50 @@ fun QuizFormScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 2. Danh sách câu hỏi
+            // 2. Nhập câu hỏi từ file
+            SectionCard(title = "Nhập câu hỏi từ file", icon = Icons.Outlined.CloudUpload) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Chọn file CSV (xuất từ Excel) để nạp nhanh danh sách câu hỏi.",
+                        color = Color(0xFF475569),
+                        fontSize = 13.sp
+                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            importLauncher.launch(
+                                arrayOf(
+                                    "text/csv",
+                                    "application/vnd.ms-excel",
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                )
+                            )
+                        },
+                        enabled = !uiState.isImporting,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        if (uiState.isImporting) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Đang nhập...")
+                        } else {
+                            Icon(Icons.Outlined.CloudUpload, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Chọn file CSV")
+                        }
+                    }
+
+                    Text(
+                        text = "Định dạng: Câu hỏi | Lựa chọn A | B | C | D | Đáp án (A-D hoặc 1-4). Dòng đầu là header sẽ bị bỏ qua.",
+                        color = Color(0xFF64748B),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 3. Danh sách câu hỏi
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

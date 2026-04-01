@@ -3,6 +3,7 @@ package com.example.lms2.data.repository
 import com.example.lms2.BuildConfig
 import com.example.lms2.data.cache.CacheTTL
 import com.example.lms2.data.cache.RepositoryCache
+import com.example.lms2.data.model.InstructorApplication
 import com.example.lms2.data.model.InstructorApplicationStatus
 import com.example.lms2.data.model.User
 import com.example.lms2.data.model.UserRole
@@ -186,33 +187,58 @@ class AuthRepository {
         }
     }
 
-    suspend fun submitInstructorApplication(uid: String): ResultState<Unit> {
+    suspend fun submitInstructorApplication(
+        uid: String,
+        application: InstructorApplication
+    ): ResultState<Unit> {
+        val sanitized = application.copy(
+            expertise = application.expertise.trim(),
+            qualification = application.qualification.trim(),
+            bio = application.bio.trim(),
+            portfolioUrl = application.portfolioUrl.trim(),
+            bankAccountName = application.bankAccountName.trim(),
+            bankAccountNumber = application.bankAccountNumber.trim(),
+            bankName = application.bankName.trim(),
+            experienceYears = application.experienceYears.coerceAtLeast(0)
+        )
+
+        if (sanitized.expertise.isBlank() || sanitized.qualification.isBlank() || sanitized.bio.isBlank()) {
+            return ResultState.Error("Vui lòng điền đầy đủ chuyên môn, bằng cấp và mô tả kinh nghiệm")
+        }
+
+        if (sanitized.experienceYears <= 0) {
+            return ResultState.Error("Số năm kinh nghiệm phải lớn hơn 0")
+        }
+
         return try {
             val userRef = firestore.collection("users").document(uid)
-            val userSnapshot = userRef.get().await()
-            val user = userSnapshot.toObject(User::class.java)
-                ?: return ResultState.Error("Không tìm thấy thông tin người dùng")
 
-            if (user.role == UserRole.ADMIN || user.role == UserRole.INSTRUCTOR) {
-                return ResultState.Error("Tài khoản hiện tại không cần gửi đăng ký giảng viên")
-            }
+            firestore.runTransaction { transaction ->
+                val userSnapshot = transaction.get(userRef)
+                val user = userSnapshot.toObject(User::class.java)
+                    ?: throw IllegalStateException("Không tìm thấy thông tin người dùng")
 
-            if (user.instructorRequestStatus == InstructorApplicationStatus.PENDING) {
-                return ResultState.Error("Đơn đăng ký đang chờ admin phê duyệt")
-            }
+                if (user.role == UserRole.ADMIN || user.role == UserRole.INSTRUCTOR) {
+                    throw IllegalStateException("Tài khoản hiện tại không cần gửi đăng ký giảng viên")
+                }
 
-            userRef
-                .set(
+                if (user.instructorRequestStatus == InstructorApplicationStatus.PENDING) {
+                    throw IllegalStateException("Đơn đăng ký đang chờ admin phê duyệt")
+                }
+
+                transaction.set(
+                    userRef,
                     mapOf(
                         "instructorRequestStatus" to InstructorApplicationStatus.PENDING.name,
                         "instructorRequestSubmittedAt" to System.currentTimeMillis(),
                         "instructorRequestReviewedAt" to null,
                         "instructorRequestReviewedBy" to null,
-                        "instructorRequestRejectReason" to null
+                        "instructorRequestRejectReason" to null,
+                        "instructorApplication" to sanitized
                     ),
                     SetOptions.merge()
                 )
-                .await()
+            }.await()
 
             ResultState.Success(Unit)
         } catch (e: Exception) {
@@ -311,6 +337,18 @@ class AuthRepository {
                     throw IllegalStateException("Đơn đăng ký không còn ở trạng thái chờ duyệt")
                 }
 
+                val instructorData = mutableMapOf<String, Any>("uid" to targetUid)
+                user.instructorApplication?.let { app ->
+                    if (app.expertise.isNotBlank()) instructorData["expertise"] = app.expertise
+                    if (app.experienceYears > 0) instructorData["experienceYears"] = app.experienceYears
+                    if (app.qualification.isNotBlank()) instructorData["qualification"] = app.qualification
+                    if (app.bankAccountName.isNotBlank()) instructorData["bankAccountHolder"] = app.bankAccountName
+                    if (app.bankAccountNumber.isNotBlank()) instructorData["bankAccountNumber"] = app.bankAccountNumber
+                    if (app.bankName.isNotBlank()) instructorData["bankName"] = app.bankName
+                    if (app.portfolioUrl.isNotBlank()) instructorData["portfolioUrl"] = app.portfolioUrl
+                    if (app.bio.isNotBlank()) instructorData["bio"] = app.bio
+                }
+
                 transaction.set(
                     userRef,
                     mapOf(
@@ -325,7 +363,7 @@ class AuthRepository {
 
                 transaction.set(
                     instructorRef,
-                    mapOf("uid" to targetUid),
+                    instructorData,
                     SetOptions.merge()
                 )
             }.await()

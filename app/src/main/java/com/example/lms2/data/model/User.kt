@@ -11,6 +11,7 @@ data class User(
     val instructorRequestReviewedAt: Long? = null,
     val instructorRequestReviewedBy: String? = null,
     val instructorRequestRejectReason: String? = null,
+    val instructorApplication: InstructorApplication? = null,
     val avatarUrl: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 )

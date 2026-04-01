@@ -25,5 +25,6 @@ data class CourseUiState(
     val priceError: String? = null,
     val categoryError: String? = null,
     val durationError: String? = null,
-    val thumbnailUrlError: String? = null
+    val thumbnailUrlError: String? = null,
+    val introVideoUrlError: String? = null
 )

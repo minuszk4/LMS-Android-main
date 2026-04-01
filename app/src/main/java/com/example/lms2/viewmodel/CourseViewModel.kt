@@ -163,6 +163,7 @@ class CourseViewModel(
     fun onCategorySelected() = _uiState.update { it.copy(categoryError = null) }
     fun onDurationChange() = _uiState.update { it.copy(durationError = null) }
     fun onThumbnailSelected() = _uiState.update { it.copy(thumbnailUrlError = null) }
+    fun onIntroVideoUrlChange() = _uiState.update { it.copy(introVideoUrlError = null) }
 
     private fun validate(course: Course, isFree: Boolean, priceStr: String): Boolean {
         var isValid = true
@@ -173,7 +174,8 @@ class CourseViewModel(
             priceError = null,
             categoryError = null,
             durationError = null,
-            thumbnailUrlError = null
+            thumbnailUrlError = null,
+            introVideoUrlError = null
         )}
 
         if (course.title.isBlank()) {
@@ -208,6 +210,20 @@ class CourseViewModel(
         if (course.duration.isBlank()) {
             _uiState.update { it.copy(durationError = "Thời lượng không được để trống") }
             isValid = false
+        }
+
+        val introUrl = course.introVideoUrl.trim()
+        if (introUrl.isNotEmpty()) {
+            val isHttp = introUrl.startsWith("http", ignoreCase = true)
+            val looksLikeYoutube = introUrl.contains("youtube.com", ignoreCase = true) || introUrl.contains("youtu.be", ignoreCase = true)
+            val looksLikeVideoFile = introUrl.endsWith(".mp4", ignoreCase = true) || introUrl.endsWith(".m3u8", ignoreCase = true)
+            val looksLikeCloudinary = introUrl.contains("res.cloudinary.com", ignoreCase = true)
+
+            val isValidIntro = isHttp && (looksLikeYoutube || looksLikeVideoFile || looksLikeCloudinary)
+            if (!isValidIntro) {
+                _uiState.update { it.copy(introVideoUrlError = "Link video giới thiệu phải là YouTube hoặc tệp mp4/m3u8 hợp lệ") }
+                isValid = false
+            }
         }
 
         return isValid
@@ -367,6 +383,7 @@ class CourseViewModel(
                 categoryError = null,
                 durationError = null,
                 thumbnailUrlError = null,
+                introVideoUrlError = null,
                 errorMessage = null
             )
         }
