@@ -49,6 +49,27 @@ const DEFAULT_IPN_FIELDS = [
 
 const DEFAULT_MOMO_CREATE_URL = "https://test-payment.momo.vn/v2/gateway/api/create";
 
+async function authenticateFirebaseUser(req, res, next) {
+  const authHeader = String(req.headers.authorization || "").trim();
+  if (!authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ resultCode: 401, message: "Missing bearer token" });
+  }
+
+  const idToken = authHeader.slice("Bearer ".length).trim();
+  if (!idToken) {
+    return res.status(401).json({ resultCode: 401, message: "Missing bearer token" });
+  }
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken, true);
+    req.user = decoded;
+    return next();
+  } catch (error) {
+    console.error("[auth] Invalid Firebase ID token", error);
+    return res.status(401).json({ resultCode: 401, message: "Invalid or expired token" });
+  }
+}
+
 function normalizeTransferContent(value) {
   if (!value) return "";
   return String(value)
@@ -334,12 +355,123 @@ async function upsertBankTransaction(payload) {
   return { docId, status: record.status };
 }
 
+async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
+  if (!isMomoSuccess(payload)) {
+    return { updated: false, reason: "IPN is not successful" };
+  }
+
+  const orderId = String(payload.orderId || "").trim();
+  if (!orderId) {
+    return { updated: false, reason: "Missing orderId" };
+  }
+
+  const amount = Number(payload.amount || 0);
+  const now = Date.now();
+  const orderRef = db.collection("orders").doc(orderId);
+  const bankTxRef = db.collection("bankTransactions").doc(bankTransactionDocId);
+
+  const result = await db.runTransaction(async (tx) => {
+    const orderSnapshot = await tx.get(orderRef);
+    if (!orderSnapshot.exists) {
+      return { updated: false, reason: "Order not found" };
+    }
+
+    const order = orderSnapshot.data() || {};
+    if (String(order.paymentStatus || "") !== "PENDING") {
+      return { updated: false, reason: "Order is not pending" };
+    }
+
+    const orderAmount = Number(order.totalAmount || 0);
+    if (Number.isFinite(amount) && amount + 0.5 < orderAmount) {
+      return { updated: false, reason: "IPN amount is less than order total" };
+    }
+
+    const orderItemsQuery = db.collection("orderItems").where("orderId", "==", orderId);
+    const orderItemsSnapshot = await tx.get(orderItemsQuery);
+    if (orderItemsSnapshot.empty) {
+      return { updated: false, reason: "Order items not found" };
+    }
+
+    const userId = String(order.userId || "").trim();
+    if (!userId) {
+      return { updated: false, reason: "Order missing userId" };
+    }
+
+    for (const itemDoc of orderItemsSnapshot.docs) {
+      const item = itemDoc.data() || {};
+      const courseId = String(item.courseId || "").trim();
+      if (!courseId) {
+        continue;
+      }
+
+      const enrollmentId = `${userId}_${courseId}`;
+      const enrollmentRef = db.collection("enrollments").doc(enrollmentId);
+      const enrollmentSnapshot = await tx.get(enrollmentRef);
+      if (!enrollmentSnapshot.exists) {
+        tx.set(enrollmentRef, {
+          id: enrollmentId,
+          userId,
+          courseId,
+          enrolledAt: now
+        });
+
+        tx.update(db.collection("courses").doc(courseId), {
+          enrollmentCount: admin.firestore.FieldValue.increment(1)
+        });
+      }
+
+      tx.delete(db.collection("cartItems").doc(`${userId}_${courseId}`));
+    }
+
+    tx.update(orderRef, {
+      paymentStatus: "SUCCESS",
+      confirmedAt: now
+    });
+
+    tx.update(bankTxRef, {
+      status: "USED",
+      consumedOrderId: orderId,
+      consumedAt: now,
+      updatedAt: now
+    });
+
+    return { updated: true, orderId };
+  });
+
+  return result;
+}
+
 // Express Routes
-app.post("/createMomoPayment", async (req, res) => {
+app.post("/createMomoPayment", authenticateFirebaseUser, async (req, res) => {
   const payload = req.body && typeof req.body === "object" ? req.body : {};
 
   try {
-    const momoResult = await createMomoPayment(payload);
+    const orderId = String(payload.orderId || "").trim();
+    if (!orderId) {
+      return res.status(400).json({ resultCode: 2, message: "orderId is required" });
+    }
+
+    const orderSnapshot = await db.collection("orders").doc(orderId).get();
+    if (!orderSnapshot.exists) {
+      return res.status(404).json({ resultCode: 3, message: "Order not found" });
+    }
+
+    const order = orderSnapshot.data() || {};
+    if (String(order.userId || "") !== String(req.user.uid || "")) {
+      return res.status(403).json({ resultCode: 4, message: "Forbidden for this order" });
+    }
+
+    if (String(order.paymentStatus || "") !== "PENDING") {
+      return res.status(400).json({ resultCode: 5, message: "Order is not pending" });
+    }
+
+    const momoResult = await createMomoPayment({
+      orderId,
+      amount: Number(order.totalAmount || 0),
+      orderInfo: `Thanh toan don hang ${orderId}`,
+      transferContent: String(order.transferContent || ""),
+      requestType: String(payload.requestType || "captureWallet")
+    });
     if (!momoResult.ok) {
       console.error("[createMomoPayment] MoMo create failed", momoResult.response);
       return res.status(400).json({
@@ -382,7 +514,9 @@ app.post("/momoIpnWebhook", async (req, res) => {
 
   try {
     const saved = await upsertBankTransaction(payload);
+    const fulfillment = await fulfillOrderForSuccessfulIpn(payload, saved.docId);
     console.log("[momoIpnWebhook] Saved bank transaction", saved);
+    console.log("[momoIpnWebhook] Fulfillment result", fulfillment);
     return res.status(200).json({ resultCode: 0, message: "received" });
   } catch (error) {
     console.error("[momoIpnWebhook] Failed to persist transaction", error);

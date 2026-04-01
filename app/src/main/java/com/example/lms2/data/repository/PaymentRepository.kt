@@ -15,6 +15,7 @@ import com.example.lms2.data.model.NotificationType
 import com.example.lms2.data.model.PaymentMethod
 import com.example.lms2.data.model.PaymentStatus
 import com.example.lms2.util.ResultState
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Transaction
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,7 @@ class PaymentRepository {
     }
 
     private val firestore = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
     private val cartsCollection = firestore.collection("carts")
     private val cartItemsCollection = firestore.collection("cartItems")
     private val ordersCollection = firestore.collection("orders")
@@ -301,14 +303,17 @@ class PaymentRepository {
 
             val payload = JSONObject().apply {
                 put("orderId", order.id)
-                put("amount", order.totalAmount.toLong())
-                put("orderInfo", "Thanh toan don hang ${order.id}")
-                put("transferContent", order.transferContent)
                 put("requestType", "captureWallet")
+            }
+
+            val idToken = auth.currentUser?.getIdToken(false)?.await()?.token.orEmpty()
+            if (idToken.isBlank()) {
+                return ResultState.Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại")
             }
 
             val request = Request.Builder()
                 .url("$momoFunctionBaseUrl/createMomoPayment")
+                .addHeader("Authorization", "Bearer $idToken")
                 .post(payload.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -413,121 +418,10 @@ class PaymentRepository {
                 return ResultState.Success(order)
             }
 
-            val transferKey = order.transferContentNormalized.ifBlank {
-                normalizeTransferContent(order.transferContent)
-            }
-            if (transferKey.isBlank()) {
-                return ResultState.Error("Đơn hàng thiếu mã đối soát thanh toán")
-            }
-
-            val matchedTxnSnapshot = bankTransactionsCollection
-                .whereEqualTo("transferContentNormalized", transferKey)
-                .whereEqualTo("status", "NEW")
-                .limit(1)
-                .get()
-                .await()
-
-            if (matchedTxnSnapshot.isEmpty) {
-                return ResultState.Success(order)
-            }
-
-            val txnDoc = matchedTxnSnapshot.documents.first()
-            val txnAmount = txnDoc.getDouble("amount") ?: 0.0
-            if (txnAmount + 0.5 < order.totalAmount) {
-                return ResultState.Success(order)
-            }
-
-            val orderItemsSnapshot = orderItemsCollection
-                .whereEqualTo("orderId", orderId)
-                .get()
-                .await()
-
-            val orderItems = orderItemsSnapshot.documents.mapNotNull { it.toObject(OrderItem::class.java) }
-            if (orderItems.isEmpty()) {
-                return ResultState.Error("Đơn hàng chưa có chi tiết thanh toán")
-            }
-
-            val confirmedOrder = firestore.runTransaction { transaction ->
-                val currentOrder = transaction.get(orderRef).toObject(Order::class.java)
-                    ?: throw IllegalStateException("Không đọc được đơn hàng")
-
-                if (currentOrder.paymentStatus != PaymentStatus.PENDING) {
-                    return@runTransaction currentOrder
-                }
-
-                val cartRef = cartsCollection.document(currentOrder.userId)
-                val currentCart = transaction.get(cartRef).toObject(Cart::class.java)
-                val now = System.currentTimeMillis()
-
-                val resolvedItems = orderItems.map { item ->
-                    val courseRef = coursesCollection.document(item.courseId)
-                    val course = transaction.get(courseRef).toObject(Course::class.java)
-                        ?: throw IllegalStateException("Khóa học không tồn tại")
-
-                    ResolvedCheckoutItem(
-                        courseId = item.courseId,
-                        instructorId = course.instructorId,
-                        courseTitle = item.courseTitle,
-                        coursePrice = item.coursePrice,
-                        courseRefPath = courseRef.path,
-                        enrollmentCount = course.enrollmentCount.toLong(),
-                        cartItemPriceToRemove = transaction.get(
-                            cartItemsCollection.document(buildCartItemId(currentOrder.userId, item.courseId))
-                        ).toObject(CartItem::class.java)?.coursePrice
-                    )
-                }
-
-                applyFulfillment(
-                    transaction = transaction,
-                    userId = currentOrder.userId,
-                    items = resolvedItems,
-                    currentCart = currentCart,
-                    now = now,
-                    cartRefPath = cartRef.path
-                )
-
-                val successOrder = currentOrder.copy(
-                    paymentStatus = PaymentStatus.SUCCESS,
-                    confirmedAt = now
-                )
-                transaction.set(orderRef, successOrder)
-                transaction.update(
-                    txnDoc.reference,
-                    mapOf(
-                        "status" to "USED",
-                        "consumedOrderId" to currentOrder.id,
-                        "consumedAt" to now
-                    )
-                )
-                successOrder
-            }.await()
-
-            if (confirmedOrder.paymentStatus == PaymentStatus.SUCCESS) {
-                runCatching {
-                    val template = notificationRepository.purchaseSuccessTemplate(
-                        itemCount = confirmedOrder.itemCount
-                    )
-                    notificationRepository.addNotification(
-                        NotificationItem(
-                            userId = confirmedOrder.userId,
-                            title = template.title,
-                            body = template.body,
-                            type = NotificationType.PURCHASE_SUCCESS,
-                            isRead = false,
-                            createdAt = confirmedOrder.confirmedAt.ifBlankIfZero(confirmedOrder.createdAt)
-                        )
-                    )
-
-                    val firstCourseTitle = orderItems.firstOrNull()?.courseTitle
-                    notificationRepository.addStudyReminderIfNeeded(
-                        userId = confirmedOrder.userId,
-                        courseTitle = firstCourseTitle,
-                        cooldownHours = 24
-                    )
-                }
-            }
-
-            ResultState.Success(confirmedOrder)
+            // Security hardening: only server-side webhook is allowed to finalize payment
+            // and grant enrollments. Client only polls latest order status.
+            val refreshedOrder = orderRef.get().await().toObject(Order::class.java) ?: order
+            ResultState.Success(refreshedOrder)
         } catch (e: IllegalStateException) {
             ResultState.Error(e.message ?: "Xác nhận thanh toán thất bại")
         } catch (e: Exception) {

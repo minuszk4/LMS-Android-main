@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
+    }
+
+    function isInstructor() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'INSTRUCTOR';
+    }
+
+    function isCourseInstructor(courseId) {
+      return isInstructor() &&
+        exists(/databases/$(database)/documents/courses/$(courseId)) &&
+        get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId == request.auth.uid;
+    }
+
+    function isOwnerField(field) {
+      return isSignedIn() && field == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isAdmin();
+      allow create: if isSelf(userId);
+      allow update: if isSelf(userId) &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    match /courses/{courseId} {
+      allow read: if true;
+      allow create: if isAdmin() || (isInstructor() && isOwnerField(request.resource.data.instructorId));
+      allow update, delete: if isAdmin() || (isInstructor() && isOwnerField(resource.data.instructorId));
+    }
+
+    match /carts/{cartId} {
+      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
+      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /cartItems/{cartItemId} {
+      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
+      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow delete: if isSignedIn() && isOwnerField(resource.data.userId);
+    }
+
+    // Payment hardening: client can create pending orders but cannot change status/amount.
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (
+        isOwnerField(resource.data.userId) ||
+        isAdmin() ||
+        (isInstructor() && isOwnerField(resource.data.payeeInstructorId))
+      );
+
+      allow create: if isSignedIn() &&
+        isOwnerField(request.resource.data.userId) &&
+        request.resource.data.paymentStatus == 'PENDING' &&
+        request.resource.data.confirmedAt == 0;
+
+      allow update, delete: if false;
+    }
+
+    match /orderItems/{orderItemId} {
+      allow read: if isSignedIn() && (
+        isOwnerField(resource.data.userId) ||
+        isAdmin() ||
+        isCourseInstructor(resource.data.courseId)
+      );
+
+      allow create: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow update, delete: if false;
+    }
+
+    // Enrollment must be granted server-side after payment confirmation.
+    match /enrollments/{enrollmentId} {
+      allow read: if isSignedIn() && (
+        isOwnerField(resource.data.userId) ||
+        isAdmin() ||
+        isCourseInstructor(resource.data.courseId)
+      );
+      allow create, update, delete: if false;
+    }
+
+    // Transaction sources are webhook/server-side only.
+    match /bankTransactions/{transactionId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /momoRequests/{requestId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /progress/{progressId} {
+      allow read: if isSignedIn() && (
+        isOwnerField(resource.data.userId) ||
+        isAdmin() ||
+        isCourseInstructor(resource.data.courseId)
+      );
+      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn() && isOwnerField(request.resource.data.userId);
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
+      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /chatSessions/{sessionId} {
+      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
+      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /chatMessages/{messageId} {
+      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
+      allow create: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

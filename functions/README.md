@@ -1,15 +1,10 @@
 # Firebase Functions - MoMo Payment + IPN
 
 This module exposes 2 Cloud Functions for MoMo sandbox:
-- `createMomoPayment`: signs and creates a payment request with MoMo.
-- `momoIpnWebhook`: receives IPN callbacks and writes normalized records into Firestore collection `bankTransactions`.
+- `createMomoPayment`: verifies Firebase ID token, validates order ownership, then signs and creates a payment request with MoMo.
+- `momoIpnWebhook`: receives IPN callbacks, verifies signature, stores normalized records in `bankTransactions`, and finalizes pending orders server-side.
 
-The Android auto-confirm logic checks:
-- `transferContentNormalized`
-- `amount`
-- `status = "NEW"`
-
-So the webhook writes exactly these fields.
+Order finalization now happens on server-side webhook processing (not on Android client).
 
 ## 1) Install dependencies
 
