@@ -284,7 +284,7 @@ class InstructorAnalyticsRepository {
                         label = label,
                         startAt = bucketCal.timeInMillis
                     )
-                }.reversed().toMutableList()
+                }.toMutableList()
             }
 
             InstructorTimeRange.ALL_TIME -> {
@@ -298,7 +298,7 @@ class InstructorAnalyticsRepository {
                         label = "T${bucketCal.get(Calendar.MONTH) + 1}",
                         startAt = bucketCal.timeInMillis
                     )
-                }.reversed().toMutableList()
+                }.toMutableList()
             }
         }
     }
