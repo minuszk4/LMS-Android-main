@@ -30,23 +30,22 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+// IPN verification per MoMo spec expects accessKey to be part of the signature payload.
 const DEFAULT_IPN_FIELDS = [
-  "partnerCode",
-  "requestId",
+  "accessKey",
   "amount",
+  "extraData",
+  "message",
   "orderId",
   "orderInfo",
   "orderType",
-  "transId",
-  "resultCode",
-  "message",
+  "partnerCode",
   "payType",
+  "requestId",
   "responseTime",
-  "extraData"
+  "resultCode",
+  "transId"
 ];
-
-// IPN fields should NEVER include accessKey (only used in payment creation)
-const FORBIDDEN_IPN_FIELDS = ["accessKey"];
 
 const DEFAULT_MOMO_CREATE_URL = "https://test-payment.momo.vn/v2/gateway/api/create";
 
@@ -68,13 +67,17 @@ function parseFieldListFromEnv() {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-  
-  // Remove any forbidden fields (accessKey should never be in IPN verification)
-  return fields.filter((f) => !FORBIDDEN_IPN_FIELDS.includes(f));
+
+  // Ensure accessKey is always part of the IPN signature field list (MoMo requirement).
+  if (!fields.includes("accessKey")) {
+    return ["accessKey", ...fields];
+  }
+
+  return fields;
 }
 
-function buildRawSignature(payload, fieldList) {
-  return fieldList.map((key) => `${key}=${payload[key] ?? ""}`).join("&");
+function buildRawSignature(payload, fieldList, override = {}) {
+  return fieldList.map((key) => `${key}=${override[key] ?? payload[key] ?? ""}`).join("&");
 }
 
 function parseExtraData(extraData) {
@@ -144,7 +147,10 @@ function verifyMomoSignature(payload) {
   }
 
   const fieldList = parseFieldListFromEnv();
-  const rawSignature = buildRawSignature(payload, fieldList);
+  const needsAccessKey = fieldList.includes("accessKey");
+  const accessKey = needsAccessKey ? requireEnv("MOMO_ACCESS_KEY") : undefined;
+
+  const rawSignature = buildRawSignature(payload, fieldList, needsAccessKey ? { accessKey } : {});
   const calculated = crypto.createHmac("sha256", secretKey).update(rawSignature).digest("hex");
   const ok = calculated === incomingSignature;
 
