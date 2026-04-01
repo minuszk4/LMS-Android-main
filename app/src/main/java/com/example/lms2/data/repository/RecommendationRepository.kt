@@ -5,6 +5,7 @@ import com.example.lms2.data.model.CourseLevel
 import com.example.lms2.util.ResultState
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -148,6 +149,9 @@ class RecommendationRepository {
 
         val enrolledById = enrolledCourses.associateBy { it.id }
 
+        val nowMs = System.currentTimeMillis()
+        val dayMs = 24 * 60 * 60 * 1000.0
+
         val courseProgress = progressSnapshot.documents.associate { doc ->
             val courseId = doc.getString("courseId") ?: ""
             val completedLessons = (doc.getLong("completedLessons")?.toInt() ?: 0)
@@ -157,7 +161,18 @@ class RecommendationRepository {
             } else {
                 0.5
             }
-            courseId to progressWeight
+
+            // Recency from viewing history: newer lastAccessedAt => higher weight.
+            val lastAccessedAt = doc.getLong("lastAccessedAt") ?: 0L
+            val recencyWeight = if (lastAccessedAt > 0L) {
+                val daysAgo = ((nowMs - lastAccessedAt).coerceAtLeast(0L)) / dayMs
+                // Exponential decay, clamped to keep historical interests alive.
+                exp(-daysAgo / 30.0).coerceIn(0.3, 1.0)
+            } else {
+                0.3
+            }
+
+            courseId to (progressWeight * recencyWeight)
         }
 
         // Calculate weighted preferences

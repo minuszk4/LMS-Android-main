@@ -67,6 +67,16 @@ import com.example.lms2.viewmodel.AuthViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private val ProfileBackground = Color(0xFFF8FAFC)
+private val ProfileSurface = Color.White
+private val ProfileTextPrimary = Color(0xFF1E293B)
+private val ProfileTextSecondary = Color(0xFF64748B)
+private val ProfilePrimary = Color(0xFF4B5CC4)
+private val ProfileBorder = Color(0xFFE2E8F0)
+private val ProfileIconBg = Color(0xFFE4E7FF)
+private val ProfileIconTint = Color(0xFF4B5CC4)
+private val ProfileMuted = Color(0xFF94A3B8)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentProfileScreen(
@@ -145,15 +155,15 @@ fun StudentProfileScreen(
 							"Cá nhân",
 							fontWeight = FontWeight.Bold,
 							fontSize = 20.sp,
-							color = Color(0xFF1E293B)
+							color = ProfileTextPrimary
 						)
 					},
 					colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-						containerColor = Color.White
+						containerColor = ProfileSurface
 					)
 				)
 			},
-			containerColor = Color(0xFFF8FAFC)
+			containerColor = ProfileBackground
 		) { paddingValues ->
 			Column(
 				modifier = Modifier
@@ -175,7 +185,7 @@ fun StudentProfileScreen(
 							imageVector = Icons.Default.Person,
 							contentDescription = null,
 							modifier = Modifier.size(64.dp),
-							tint = Color(0xFF94A3B8)
+							tint = ProfileMuted
 						)
 					} else {
 						AsyncImage(
@@ -193,13 +203,13 @@ fun StudentProfileScreen(
 					text = uiState.currentUser?.fullName ?: "Student",
 					fontSize = 22.sp,
 					fontWeight = FontWeight.Bold,
-					color = Color(0xFF1E293B)
+					color = ProfileTextPrimary
 				)
 
 				Text(
 					text = uiState.currentUser?.email ?: "",
 					fontSize = 14.sp,
-					color = Color(0xFF64748B)
+					color = ProfileTextSecondary
 				)
 
 				Spacer(modifier = Modifier.height(40.dp))
@@ -242,7 +252,7 @@ fun StudentProfileScreen(
 							.fillMaxWidth()
 							.height(52.dp),
 						shape = RoundedCornerShape(12.dp),
-						colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B5CC4))
+						colors = ButtonDefaults.buttonColors(containerColor = ProfilePrimary)
 					) {
 						Text(buttonText, color = Color.White, fontWeight = FontWeight.Bold)
 					}
@@ -409,7 +419,7 @@ fun StudentProfileScreen(
 			Box(
 				modifier = Modifier
 					.fillMaxSize()
-					.background(Color.White.copy(alpha = 0.95f)),
+							.background(Color.White.copy(alpha = 0.95f)),
 				contentAlignment = Alignment.Center
 			) {
 				Column(
@@ -417,14 +427,14 @@ fun StudentProfileScreen(
 					verticalArrangement = Arrangement.spacedBy(16.dp)
 				) {
 					CircularProgressIndicator(
-						color = Color(0xFF4B5CC4),
+								color = ProfilePrimary,
 						modifier = Modifier.size(48.dp)
 					)
 					Text(
 						text = "Đang đăng xuất...",
 						fontSize = 16.sp,
 						fontWeight = FontWeight.Medium,
-						color = Color(0xFF64748B)
+								color = ProfileTextSecondary
 					)
 				}
 			}
@@ -438,13 +448,13 @@ fun StudentProfileScreen(
 				Text(
 					text = "Đăng xuất",
 					fontWeight = FontWeight.Bold,
-					color = Color(0xFF1E293B)
+					color = ProfileTextPrimary
 				)
 			},
 			text = {
 				Text(
 					text = "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?",
-					color = Color(0xFF64748B),
+						color = ProfileTextSecondary,
 					lineHeight = 20.sp
 				)
 			},
@@ -463,7 +473,7 @@ fun StudentProfileScreen(
 				TextButton(
 					onClick = { showLogoutDialog = false }
 				) {
-					Text("Hủy", color = Color(0xFF64748B))
+					Text("Hủy", color = ProfileTextSecondary)
 				}
 			},
 			shape = RoundedCornerShape(16.dp),
@@ -490,7 +500,7 @@ private fun ProfileActionRow(
 			.height(58.dp),
 		shape = RoundedCornerShape(12.dp),
 		colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-		border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+		border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
 	) {
 		Row(
 			modifier = Modifier
@@ -503,13 +513,13 @@ private fun ProfileActionRow(
 				modifier = Modifier
 					.size(32.dp)
 					.clip(RoundedCornerShape(8.dp))
-					.background(Color(0xFFE4E7FF)),
+					.background(ProfileIconBg),
 				contentAlignment = Alignment.Center
 			) {
 				Icon(
 					imageVector = icon,
 					contentDescription = null,
-					tint = Color(0xFF4B5CC4),
+					tint = ProfileIconTint,
 					modifier = Modifier.size(18.dp)
 				)
 			}

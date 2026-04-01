@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -30,6 +34,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,10 +51,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.example.lms2.ui.component.TopBar
 import com.example.lms2.util.AuthEvent
 import com.example.lms2.viewmodel.AuthViewModel
 
+private val EditBg = Color(0xFFF8FAFC)
+private val EditSurface = Color.White
+private val EditTextPrimary = Color(0xFF1E293B)
+private val EditTextSecondary = Color(0xFF64748B)
+private val EditPrimary = Color(0xFF4B5CC4)
+private val EditBorder = Color(0xFFE2E8F0)
+private val EditInputBg = Color.White
+private val EditInputBgSoft = Color(0xFFF1F5F9)
+private val EditAvatarBg = Color(0xFFE2E8F0)
+private val EditMuted = Color(0xFF94A3B8)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentProfileEditScreen(
     authViewModel: AuthViewModel,
@@ -103,13 +119,23 @@ fun StudentProfileEditScreen(
 
     Scaffold(
         topBar = {
-            TopBar(
-                title = "Cập nhật thông tin",
-                onBackClick = onBackClick
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "Cập nhật thông tin",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = EditTextPrimary
+                    )
+                },
+                navigationIcon = {},
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = EditSurface
+                )
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        containerColor = Color(0xFFF8FAFC)
+        containerColor = EditBg
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -123,14 +149,14 @@ fun StudentProfileEditScreen(
                 modifier = Modifier
                     .size(120.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFE2E8F0)),
+                    .background(EditAvatarBg),
                 contentAlignment = Alignment.Center
             ) {
                 if (avatarPreviewModel == null) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = Color(0xFF94A3B8),
+                        tint = EditMuted,
                         modifier = Modifier.size(64.dp)
                     )
                 } else {
@@ -146,7 +172,7 @@ fun StudentProfileEditScreen(
                     CircularProgressIndicator(
                         modifier = Modifier.size(36.dp),
                         strokeWidth = 3.dp,
-                        color = Color(0xFF4B5CC4)
+                        color = EditPrimary
                     )
                 }
             }
@@ -157,7 +183,7 @@ fun StudentProfileEditScreen(
             ) {
                 Text(
                     text = if (uiState.isUpdatingProfile) "Đang tải ảnh..." else "Thay đổi ảnh đại diện",
-                    color = Color(0xFF64748B),
+                    color = EditTextSecondary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -173,7 +199,7 @@ fun StudentProfileEditScreen(
                     text = "Họ và tên",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1F2937)
+                    color = EditTextPrimary
                 )
                 OutlinedTextField(
                     value = fullName,
@@ -182,10 +208,14 @@ fun StudentProfileEditScreen(
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true,
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        focusedIndicatorColor = Color(0xFFCBD5E1),
-                        unfocusedIndicatorColor = Color(0xFFCBD5E1)
+                        focusedContainerColor = EditInputBg,
+                        unfocusedContainerColor = EditInputBg,
+                        focusedIndicatorColor = EditBorder,
+                        unfocusedIndicatorColor = EditBorder,
+                        focusedTextColor = EditTextPrimary,
+                        unfocusedTextColor = EditTextPrimary,
+                        focusedLabelColor = EditTextSecondary,
+                        unfocusedLabelColor = EditTextSecondary
                     )
                 )
 
@@ -195,7 +225,7 @@ fun StudentProfileEditScreen(
                     text = "Email",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1F2937)
+                    color = EditTextPrimary
                 )
                 OutlinedTextField(
                     value = email,
@@ -208,18 +238,19 @@ fun StudentProfileEditScreen(
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = null,
-                            tint = Color(0xFF9CA3AF)
+                            tint = EditMuted
                         )
                     },
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFFF1F5F9),
-                        unfocusedContainerColor = Color(0xFFF1F5F9),
-                        disabledContainerColor = Color(0xFFF1F5F9),
-                        focusedIndicatorColor = Color(0xFFE2E8F0),
-                        unfocusedIndicatorColor = Color(0xFFE2E8F0),
-                        disabledIndicatorColor = Color(0xFFE2E8F0),
-                        focusedTextColor = Color(0xFF6B7280),
-                        unfocusedTextColor = Color(0xFF6B7280)
+                        focusedContainerColor = EditInputBgSoft,
+                        unfocusedContainerColor = EditInputBgSoft,
+                        disabledContainerColor = EditInputBgSoft,
+                        focusedIndicatorColor = EditBorder,
+                        unfocusedIndicatorColor = EditBorder,
+                        disabledIndicatorColor = EditBorder,
+                        focusedTextColor = EditTextSecondary,
+                        unfocusedTextColor = EditTextSecondary,
+                        disabledTextColor = EditTextSecondary
                     )
                 )
             }
@@ -240,8 +271,8 @@ fun StudentProfileEditScreen(
                 shape = RoundedCornerShape(12.dp),
                 enabled = canSave,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4B5CC4),
-                    disabledContainerColor = Color(0xFFBFC7F5)
+                    containerColor = EditPrimary,
+                    disabledContainerColor = EditPrimary.copy(alpha = 0.45f)
                 )
             ) {
                 if (uiState.isUpdatingProfile) {

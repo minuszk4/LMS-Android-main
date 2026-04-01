@@ -66,7 +66,9 @@ import com.example.lms2.ui.screen.student.StudentSettingsScreen
 import com.example.lms2.viewmodel.*
 
 @Composable
-fun AppNavGraph() {
+fun AppNavGraph(
+    onDarkModeChanged: (Boolean) -> Unit = {}
+) {
     val navController = rememberNavController()
 
     val authViewModel: AuthViewModel = viewModel()
@@ -363,6 +365,7 @@ fun AppNavGraph() {
 
             composable(Routes.STUDENT_SETTINGS) {
                 StudentSettingsScreen(
+                    onDarkModeChanged = onDarkModeChanged,
                     onBackClick = { navController.popBackStack() }
                 )
             }

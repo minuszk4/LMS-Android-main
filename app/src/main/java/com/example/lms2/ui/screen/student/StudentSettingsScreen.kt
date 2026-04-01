@@ -2,6 +2,7 @@ package com.example.lms2.ui.screen.student
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -32,6 +34,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,7 +44,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
 import com.example.lms2.ui.component.TopBar
+import com.example.lms2.util.AppSettingsStore
 
 private val SettingsBg = Color(0xFFF8FAFC)
 private val SettingsCardBg = Color(0xFFEFF3FF)
@@ -52,17 +58,28 @@ private val SettingsRowBorder = Color(0xFFE2E8F0)
 
 @Composable
 fun StudentSettingsScreen(
+    onDarkModeChanged: (Boolean) -> Unit = {},
     onBackClick: () -> Unit
 ) {
-    var pushNotificationEnabled by remember { mutableStateOf(true) }
-    var emailNotificationEnabled by remember { mutableStateOf(false) }
-    var darkModeEnabled by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    val colorScheme = MaterialTheme.colorScheme
+
+    var pushNotificationEnabled by remember {
+        mutableStateOf(AppSettingsStore.isPushNotificationEnabled(context))
+    }
+    var emailNotificationEnabled by remember {
+        mutableStateOf(AppSettingsStore.isEmailNotificationEnabled(context))
+    }
+    var darkModeEnabled by remember {
+        mutableStateOf(AppSettingsStore.isDarkModeEnabled(context))
+    }
 
     Scaffold(
         topBar = {
             TopBar(title = "Cài đặt", onBackClick = onBackClick)
         },
-        containerColor = SettingsBg
+        containerColor = colorScheme.background
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -79,7 +96,10 @@ fun StudentSettingsScreen(
                     icon = Icons.Default.Notifications,
                     title = "Bật thông báo",
                     checked = pushNotificationEnabled,
-                    onCheckedChange = { pushNotificationEnabled = it }
+                    onCheckedChange = {
+                        pushNotificationEnabled = it
+                        AppSettingsStore.setPushNotificationEnabled(context, it)
+                    }
                 )
             }
             item {
@@ -87,7 +107,10 @@ fun StudentSettingsScreen(
                     icon = Icons.Default.Mail,
                     title = "Thông báo email",
                     checked = emailNotificationEnabled,
-                    onCheckedChange = { emailNotificationEnabled = it }
+                    onCheckedChange = {
+                        emailNotificationEnabled = it
+                        AppSettingsStore.setEmailNotificationEnabled(context, it)
+                    }
                 )
             }
 
@@ -99,7 +122,11 @@ fun StudentSettingsScreen(
                     icon = Icons.Default.DarkMode,
                     title = "Chế độ tối",
                     checked = darkModeEnabled,
-                    onCheckedChange = { darkModeEnabled = it }
+                    onCheckedChange = {
+                        darkModeEnabled = it
+                        AppSettingsStore.setDarkModeEnabled(context, it)
+                        onDarkModeChanged(it)
+                    }
                 )
             }
             item {
@@ -107,7 +134,10 @@ fun StudentSettingsScreen(
                     icon = Icons.Default.Language,
                     title = "Ngôn ngữ",
                     trailingText = "Tiếng Việt",
-                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForwardIos
+                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    onClick = {
+                        Toast.makeText(context, "Hiện chỉ hỗ trợ Tiếng Việt", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
 
@@ -118,21 +148,42 @@ fun StudentSettingsScreen(
                 SettingActionRow(
                     icon = Icons.Default.PrivacyTip,
                     title = "Chính sách bảo mật",
-                    trailingIcon = Icons.AutoMirrored.Filled.OpenInNew
+                    trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
+                    onClick = {
+                        runCatching {
+                            uriHandler.openUri("https://www.termsfeed.com/live/8d8e5e5a-1e35-4c4e-8f94-4d52f4d0b999")
+                        }.onFailure {
+                            Toast.makeText(context, "Không thể mở liên kết", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 )
             }
             item {
                 SettingActionRow(
                     icon = Icons.Default.Description,
                     title = "Điều khoản dịch vụ",
-                    trailingIcon = Icons.AutoMirrored.Filled.OpenInNew
+                    trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
+                    onClick = {
+                        runCatching {
+                            uriHandler.openUri("https://www.termsfeed.com/live/c8f817f1-9b4a-4c79-9a72-7a2cf9680c31")
+                        }.onFailure {
+                            Toast.makeText(context, "Không thể mở liên kết", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 )
             }
             item {
                 SettingActionRow(
                     icon = Icons.AutoMirrored.Filled.HelpOutline,
                     title = "Trung tâm trợ giúp",
-                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForwardIos
+                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    onClick = {
+                        runCatching {
+                            uriHandler.openUri("https://support.google.com")
+                        }.onFailure {
+                            Toast.makeText(context, "Không thể mở liên kết", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 )
             }
         }
@@ -143,7 +194,7 @@ fun StudentSettingsScreen(
 private fun SectionHeader(title: String) {
     Text(
         text = title,
-        color = SettingsTextPrimary,
+        color = MaterialTheme.colorScheme.onBackground,
         fontSize = 16.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
@@ -159,13 +210,15 @@ private fun SettingToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(SettingsRowBg)
-            .border(1.dp, SettingsRowBorder, RoundedCornerShape(14.dp))
+            .background(colorScheme.surface)
+            .border(0.5.dp, colorScheme.outline.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -174,7 +227,7 @@ private fun SettingToggleRow(
         Text(
             text = title,
             modifier = Modifier.weight(1f),
-            color = SettingsTextPrimary,
+            color = colorScheme.onSurface,
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium
         )
@@ -183,9 +236,9 @@ private fun SettingToggleRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = SettingsPrimary,
-                uncheckedThumbColor = Color(0xFFF8FAFC),
-                uncheckedTrackColor = Color(0xFFD1D5DB),
+                checkedTrackColor = colorScheme.primary,
+                uncheckedThumbColor = colorScheme.surface,
+                uncheckedTrackColor = colorScheme.outline,
                 uncheckedBorderColor = Color.Transparent
             )
         )
@@ -197,15 +250,19 @@ private fun SettingActionRow(
     icon: ImageVector,
     title: String,
     trailingText: String = "",
-    trailingIcon: ImageVector
+    trailingIcon: ImageVector,
+    onClick: () -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(58.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(SettingsRowBg)
-            .border(1.dp, SettingsRowBorder, RoundedCornerShape(14.dp))
+            .background(colorScheme.surface)
+            .border(0.5.dp, colorScheme.outline.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -216,13 +273,13 @@ private fun SettingActionRow(
             modifier = Modifier.weight(1f),
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF111827)
+            color = colorScheme.onSurface
         )
 
         if (trailingText.isNotBlank()) {
             Text(
                 text = trailingText,
-                color = SettingsTextSecondary,
+                color = colorScheme.onSurfaceVariant,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -231,7 +288,7 @@ private fun SettingActionRow(
         Icon(
             imageVector = trailingIcon,
             contentDescription = null,
-            tint = SettingsTextSecondary,
+            tint = colorScheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp)
         )
     }
@@ -239,17 +296,19 @@ private fun SettingActionRow(
 
 @Composable
 private fun SettingLeadingIcon(icon: ImageVector) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Box(
         modifier = Modifier
             .size(32.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFE4E7FF)),
+            .background(colorScheme.primary.copy(alpha = 0.12f)),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFF4B5CC4),
+            tint = colorScheme.primary,
             modifier = Modifier.size(18.dp)
         )
     }

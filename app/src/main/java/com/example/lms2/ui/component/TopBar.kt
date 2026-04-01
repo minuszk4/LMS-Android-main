@@ -4,7 +4,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
@@ -15,13 +14,15 @@ fun TopBar(
     onBackClick: () -> Unit,
     showBackButton: Boolean = true
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     CenterAlignedTopAppBar(
         title = {
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
-                color = Color(0xFF1E293B)
+                color = colorScheme.onSurface
             )
         },
         navigationIcon = {
@@ -30,13 +31,13 @@ fun TopBar(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Quay lại",
-                        tint = Color(0xFF4B5CC4)
+                        tint = colorScheme.primary
                     )
                 }
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color.White
+            containerColor = colorScheme.surface
         )
     )
 }
