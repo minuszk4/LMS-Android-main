@@ -2,6 +2,7 @@ package com.example.lms2.ui.screen.student
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -39,10 +41,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.lms2.data.model.Course
 import com.example.lms2.ui.component.TopBar
 import com.example.lms2.util.InstructorPublicProfileEvent
 import com.example.lms2.viewmodel.InstructorPublicProfileViewModel
@@ -138,6 +142,74 @@ fun InstructorPublicProfileRoute(
                 InfoCard(
                     title = "Trình độ/Bằng cấp",
                     value = instructor.qualification.ifBlank { "Chưa cập nhật" }
+                )
+            }
+
+            item {
+                Text(
+                    text = "Khóa học của giảng viên",
+                    color = Color(0xFF1E293B),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            if (uiState.courses.isEmpty()) {
+                item {
+                    InfoCard(
+                        title = "Danh sách khóa học",
+                        value = "Giảng viên này chưa có khóa học công khai"
+                    )
+                }
+            } else {
+                items(uiState.courses, key = { it.id }) { course ->
+                    InstructorCourseCard(course = course)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InstructorCourseCard(course: Course) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = course.thumbnailUrl.ifBlank { "https://picsum.photos/seed/fallback_course/640/360" },
+                contentDescription = course.title,
+                modifier = Modifier
+                    .size(84.dp)
+                    .clip(RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop
+            )
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = course.title,
+                    color = Color(0xFF1E293B),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${course.enrollmentCount} học viên • ${course.rating}★",
+                    color = Color(0xFF64748B),
+                    fontSize = 12.sp
                 )
             }
         }

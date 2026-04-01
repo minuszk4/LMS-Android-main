@@ -2,6 +2,7 @@ package com.example.lms2.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lms2.data.repository.CourseRepository
 import com.example.lms2.data.repository.InstructorRepository
 import com.example.lms2.util.InstructorPublicProfileEvent
 import com.example.lms2.util.InstructorPublicProfileUiState
@@ -15,7 +16,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class InstructorPublicProfileViewModel(
-    private val repository: InstructorRepository = InstructorRepository()
+    private val repository: InstructorRepository = InstructorRepository(),
+    private val courseRepository: CourseRepository = CourseRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(InstructorPublicProfileUiState())
@@ -35,25 +37,38 @@ class InstructorPublicProfileViewModel(
     private fun load(instructorId: String) {
         viewModelScope.launch {
             loadedInstructorId = instructorId
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoading = true, courses = emptyList()) }
 
-            when (val result = repository.getInstructorById(instructorId)) {
+            val instructorResult = repository.getInstructorById(instructorId)
+            val coursesResult = courseRepository.getCoursesByInstructor(instructorId)
+
+            when (instructorResult) {
                 is ResultState.Success -> {
+                    val visibleCourses = when (coursesResult) {
+                        is ResultState.Success -> coursesResult.data.filter { it.isPublished }
+                        else -> emptyList()
+                    }
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            instructor = result.data
+                            instructor = instructorResult.data,
+                            courses = visibleCourses
                         )
+                    }
+
+                    if (coursesResult is ResultState.Error) {
+                        _event.emit(InstructorPublicProfileEvent.ShowError(coursesResult.message))
                     }
                 }
 
                 is ResultState.Error -> {
-                    _uiState.update { it.copy(isLoading = false) }
-                    _event.emit(InstructorPublicProfileEvent.ShowError(result.message))
+                    _uiState.update { it.copy(isLoading = false, courses = emptyList()) }
+                    _event.emit(InstructorPublicProfileEvent.ShowError(instructorResult.message))
                 }
 
                 else -> {
-                    _uiState.update { it.copy(isLoading = false) }
+                    _uiState.update { it.copy(isLoading = false, courses = emptyList()) }
                 }
             }
         }
