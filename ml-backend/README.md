@@ -91,22 +91,20 @@ Response:
 
 1. GitHub account with this repo pushed
 2. Render account
-3. Firebase service account with Firestore permissions
+3. No Firebase credentials are required for the temporary seed-data deployment
 
 ### Steps
 
-1. Create new Web Service on Render
-2. Connect GitHub repo
-3. Set build command: `pip install -r ml-backend/requirements.txt`
-4. Set start command: `python ml-backend/app.py`
-5. Add environment variables (from Firebase):
-   - `FIREBASE_PROJECT_ID`
-   - `FIREBASE_PRIVATE_KEY_ID`
-   - `FIREBASE_PRIVATE_KEY`
-   - `FIREBASE_CLIENT_EMAIL`
-   - `FIREBASE_CLIENT_ID`
-   - `FIREBASE_CLIENT_X509_CERT_URL`
-6. Deploy
+1. Create a new Blueprint on Render and connect this repository
+2. Render will use `render.yaml` at the repo root
+3. Deploy the `lms-ml-backend` service
+
+If you prefer to create a manual Web Service instead of a Blueprint:
+
+1. Set the root directory to `ml-backend`
+2. Set the build command to `pip install -r requirements.txt`
+3. Set the start command to `gunicorn app:app`
+4. Deploy
 
 ### Getting Render URL
 
