@@ -23,6 +23,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,6 +47,7 @@ fun LessonVideoSection(
     playbackPositionMs: Long,
     playbackWhenReady: Boolean,
     onPlaybackSnapshot: (Long, Boolean) -> Unit,
+    onPlaybackProgress: (Long, Long) -> Unit,
     onEnterFullscreen: () -> Unit,
     onExitFullscreen: () -> Unit
 ) {
@@ -67,6 +70,7 @@ fun LessonVideoSection(
                 initialSeekPositionMs = playbackPositionMs,
                 resumeWhenReady = playbackWhenReady,
                 onPlaybackSnapshot = onPlaybackSnapshot,
+                onPlaybackProgress = onPlaybackProgress,
                 onToggleFullscreen = {
                     snapshotPlaybackState()
                     onExitFullscreen()
@@ -81,6 +85,7 @@ fun LessonVideoSection(
             initialSeekPositionMs = playbackPositionMs,
             resumeWhenReady = playbackWhenReady,
             onPlaybackSnapshot = onPlaybackSnapshot,
+            onPlaybackProgress = onPlaybackProgress,
             onToggleFullscreen = {
                 snapshotPlaybackState()
                 onEnterFullscreen()
@@ -97,6 +102,7 @@ fun VideoPlayer(
     initialSeekPositionMs: Long,
     resumeWhenReady: Boolean,
     onPlaybackSnapshot: (Long, Boolean) -> Unit,
+    onPlaybackProgress: (Long, Long) -> Unit,
     onToggleFullscreen: () -> Unit
 ) {
     val context = LocalContext.current
@@ -133,6 +139,15 @@ fun VideoPlayer(
     DisposableEffect(exoPlayer) {
         onDispose {
             onPlaybackSnapshot(exoPlayer.currentPosition.coerceAtLeast(0L), exoPlayer.playWhenReady)
+        }
+    }
+
+    LaunchedEffect(exoPlayer, videoUrl) {
+        while (isActive) {
+            val position = exoPlayer.currentPosition.coerceAtLeast(0L)
+            val duration = exoPlayer.duration.coerceAtLeast(0L)
+            onPlaybackProgress(position, duration)
+            delay(1000)
         }
     }
 

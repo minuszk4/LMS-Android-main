@@ -166,6 +166,62 @@ class LessonPlayerViewModel(
         }
     }
 
+    fun markLessonCompletedAutomatically(
+        userId: String,
+        courseId: String,
+        lessonId: String
+    ) {
+        if (_uiState.value.isTogglingLesson) return
+        val alreadyCompleted = _uiState.value.lessonProgressMap[lessonId]?.isCompleted ?: false
+        if (alreadyCompleted) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isTogglingLesson = true) }
+
+            val totalLessons = _uiState.value.course?.lessonCount ?: 0
+            val result = progressRepository.toggleLessonComplete(
+                userId = userId,
+                courseId = courseId,
+                lessonId = lessonId,
+                isCompleted = true,
+                totalLessons = totalLessons
+            )
+
+            when (result) {
+                is ResultState.Success -> {
+                    val updatedLessonProgressMap = _uiState.value.lessonProgressMap.toMutableMap()
+                    updatedLessonProgressMap[lessonId] = LessonProgress(
+                        lessonId = lessonId,
+                        userId = userId,
+                        courseId = courseId,
+                        isCompleted = true
+                    )
+
+                    val newCompleted = updatedLessonProgressMap.values.count { it.isCompleted }
+                    val updatedProgress = _uiState.value.progress?.copy(
+                        completedLessons = newCompleted,
+                        isCompleted = newCompleted >= totalLessons
+                    )
+
+                    _uiState.update {
+                        it.copy(
+                            isTogglingLesson = false,
+                            lessonProgressMap = updatedLessonProgressMap,
+                            progress = updatedProgress
+                        )
+                    }
+                }
+
+                is ResultState.Error -> {
+                    _uiState.update { it.copy(isTogglingLesson = false) }
+                    _event.emit(LessonPlayerEvent.ShowError(result.message))
+                }
+
+                else -> _uiState.update { it.copy(isTogglingLesson = false) }
+            }
+        }
+    }
+
     fun reloadProgress(userId: String, courseId: String) {
         viewModelScope.launch {
             when (val result = progressRepository.loadCourseProgress(userId, courseId)) {

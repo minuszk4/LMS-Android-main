@@ -123,6 +123,19 @@ fun LessonPlayerScreen(
         playbackWhenReady = whenReady
     }
 
+    fun onPlaybackProgress(positionMs: Long, durationMs: Long) {
+        if (durationMs <= 0L) return
+        val lessonItem = uiState.selectedItem as? CurriculumItem.LessonItem ?: return
+        val lessonId = lessonItem.id
+        val currentCompleted = uiState.lessonProgressMap[lessonId]?.isCompleted ?: false
+        if (currentCompleted || uiState.isTogglingLesson) return
+
+        val ratio = positionMs.toFloat() / durationMs.toFloat()
+        if (ratio >= 0.8f) {
+            viewModel.markLessonCompletedAutomatically(userId, courseId, lessonId)
+        }
+    }
+
     Scaffold(
         topBar = {
             if (showScaffoldChrome) {
@@ -174,6 +187,7 @@ fun LessonPlayerScreen(
                     playbackPositionMs = playbackPositionMs,
                     playbackWhenReady = playbackWhenReady,
                     onPlaybackSnapshot = ::updatePlaybackSnapshot,
+                    onPlaybackProgress = ::onPlaybackProgress,
                     onEnterFullscreen = {
                         isVideoFullscreen = true
                     },
@@ -197,6 +211,7 @@ fun LessonPlayerScreen(
                                 playbackPositionMs = playbackPositionMs,
                                 playbackWhenReady = playbackWhenReady,
                                 onPlaybackSnapshot = ::updatePlaybackSnapshot,
+                                onPlaybackProgress = ::onPlaybackProgress,
                                 onEnterFullscreen = {
                                     isVideoFullscreen = true
                                 },
