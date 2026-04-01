@@ -45,6 +45,9 @@ const DEFAULT_IPN_FIELDS = [
   "extraData"
 ];
 
+// IPN fields should NEVER include accessKey (only used in payment creation)
+const FORBIDDEN_IPN_FIELDS = ["accessKey"];
+
 const DEFAULT_MOMO_CREATE_URL = "https://test-payment.momo.vn/v2/gateway/api/create";
 
 function normalizeTransferContent(value) {
@@ -59,11 +62,15 @@ function normalizeTransferContent(value) {
 
 function parseFieldListFromEnv() {
   const raw = process.env.MOMO_IPN_FIELDS || "";
-  if (!raw.trim()) return DEFAULT_IPN_FIELDS;
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const fields = !raw.trim()
+    ? DEFAULT_IPN_FIELDS
+    : raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+  
+  // Remove any forbidden fields (accessKey should never be in IPN verification)
+  return fields.filter((f) => !FORBIDDEN_IPN_FIELDS.includes(f));
 }
 
 function buildRawSignature(payload, fieldList) {
