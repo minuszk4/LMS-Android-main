@@ -30,9 +30,9 @@ class CurriculumRepository {
         return try {
             val docRef = lessonsCollection.document()
             val now = System.currentTimeMillis()
+            val nextOrderIndex = getNextOrderIndex(lesson.courseId)
 
             val createdId = firestore.runTransaction { txn ->
-                val nextOrderIndex = getNextOrderIndex(txn, lesson.courseId)
                 val newLesson = lesson.copy(
                     id = docRef.id,
                     orderIndex = nextOrderIndex,
@@ -90,9 +90,9 @@ class CurriculumRepository {
         return try {
             val docRef = quizzesCollection.document()
             val now = System.currentTimeMillis()
+            val nextOrderIndex = getNextOrderIndex(quiz.courseId)
 
             val createdId = firestore.runTransaction { txn ->
-                val nextOrderIndex = getNextOrderIndex(txn, quiz.courseId)
                 val newQuiz = quiz.copy(
                     id = docRef.id,
                     orderIndex = nextOrderIndex,
@@ -197,31 +197,31 @@ class CurriculumRepository {
         }
     }
 
-    private fun getNextOrderIndex(txn: Transaction, courseId: String): Int {
-        val lastLessonIndex = txn.get(
-            lessonsCollection
-                .whereEqualTo("courseId", courseId)
-                .orderBy("orderIndex", Query.Direction.DESCENDING)
-                .limit(1)
-        )
+    private suspend fun getNextOrderIndex(courseId: String): Int {
+        val lastLessonIndex = lessonsCollection
+            .whereEqualTo("courseId", courseId)
+            .orderBy("orderIndex", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .await()
             .documents
             .firstOrNull()
             ?.getLong("orderIndex")
             ?.toInt()
             ?: -1
 
-        val lastQuizIndex = txn.get(
-            quizzesCollection
-                .whereEqualTo("courseId", courseId)
-                .orderBy("orderIndex", Query.Direction.DESCENDING)
-                .limit(1)
-        )
+        val lastQuizIndex = quizzesCollection
+            .whereEqualTo("courseId", courseId)
+            .orderBy("orderIndex", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .await()
             .documents
             .firstOrNull()
             ?.getLong("orderIndex")
             ?.toInt()
             ?: -1
 
-        return max(lastLessonIndex, lastQuizIndex) + 1
+        return maxOf(lastLessonIndex, lastQuizIndex) + 1
     }
 }
