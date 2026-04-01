@@ -8,6 +8,7 @@ import random
 import json
 import sys
 import time
+import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 import uuid
@@ -17,8 +18,9 @@ try:
     import firebase_admin
     from firebase_admin import credentials, firestore
 except ImportError:
-    print("❌ Firebase Admin SDK chưa cài: pip install firebase-admin")
-    sys.exit(1)
+    firebase_admin = None
+    credentials = None
+    firestore = None
 
 from config import (
     SEED_PROFILES, RANDOM_SEED, BASE_TIMESTAMP_MS, CATEGORIES,
@@ -28,7 +30,7 @@ from config import (
     PROGRESS_COMPLETION_RATES, VIETNAMESE_NAMES,
     COURSE_TITLES_BY_CATEGORY, LESSON_TITLES_TEMPLATE, QUIZ_TITLES_TEMPLATE,
     REVIEW_CONTENTS, PAYMENT_METHOD, PAYMENT_STATUS, NOTIFICATION_TYPES,
-    CART_STATUS
+    CART_STATUS, BANK_CATALOG
 )
 
 # ============================================
@@ -66,6 +68,27 @@ def parse_collections_arg(raw: Optional[str]) -> Optional[List[str]]:
     items = [x.strip() for x in raw.split(",") if x.strip()]
     return items or None
 
+def random_bank_info(account_holder: str) -> Dict[str, str]:
+    """Sinh ngẫu nhiên thông tin ngân hàng theo schema hiện tại."""
+    bank = random.choice(BANK_CATALOG)
+    account_number = "".join(str(random.randint(0, 9)) for _ in range(10))
+    return {
+        "bankName": bank["name"],
+        "bankCode": bank["code"],
+        "bankAccountNumber": account_number,
+        "bankAccountHolder": account_holder,
+        "bankAccount": f"{bank['name']} - {account_number}",
+    }
+
+def build_avatar_url(role: str, index: int) -> str:
+    """Sinh URL ảnh đại diện ổn định theo user để dễ test UI."""
+    return f"https://i.pravatar.cc/256?img={((index - 1) % 70) + 1}&u={role}_{index}"
+
+def build_course_thumbnail_url(course_id: str) -> str:
+    """Sinh URL thumbnail khóa học ổn định, tránh dịch vụ placeholder hay lỗi."""
+    seed = int(hashlib.md5(course_id.encode("utf-8")).hexdigest()[:8], 16) % 100000
+    return f"https://picsum.photos/seed/lms_{seed}/640/360"
+
 # ============================================
 # SEED DATA BUILDERS
 # ============================================
@@ -102,6 +125,10 @@ class SeedDataBuilder:
         if self.dry_run:
             print(f"📌 DRY RUN: Không sẽ ghi vào Firestore")
             return
+
+        if firebase_admin is None or credentials is None or firestore is None:
+            print("❌ Firebase Admin SDK chưa cài: pip install firebase-admin")
+            sys.exit(1)
         
         try:
             cred = credentials.Certificate(credentials_path)
@@ -120,12 +147,22 @@ class SeedDataBuilder:
         # Instructors
         for i in range(num_instructors):
             uid = f"instructor_{i+1}"
+            full_name = f"GV {random_name()}"
+            bank_info = random_bank_info(full_name)
+            avatar_url = build_avatar_url("instructor", i + 1)
             self.data["users"].append({
                 "uid": uid,
-                "fullName": f"GV {random_name()}",
+                "fullName": full_name,
                 "email": f"instructor{i+1}@lms.local",
                 "role": "INSTRUCTOR",
-                "avatarUrl": None,
+                "isActive": True,
+                "instructorRequestStatus": "APPROVED",
+                "instructorRequestSubmittedAt": random_timestamp(self.profile["days_lookback"], BASE_TIMESTAMP_MS),
+                "instructorRequestReviewedAt": random_timestamp(self.profile["days_lookback"], BASE_TIMESTAMP_MS),
+                "instructorRequestReviewedBy": "admin_seed",
+                "instructorRequestRejectReason": None,
+                "instructorApplication": None,
+                "avatarUrl": avatar_url,
                 "createdAt": random_timestamp(self.profile["days_lookback"], BASE_TIMESTAMP_MS),
             })
             self.data["instructors"].append({
@@ -133,18 +170,30 @@ class SeedDataBuilder:
                 "expertise": random.choice(["Mobile", "Web", "AI", "Cloud"]),
                 "experienceYears": random.randint(2, 15),
                 "qualification": "Bachelor/Master",
-                "bankAccount": f"1234567890{i}",
+                "bankAccount": bank_info["bankAccount"],
+                "bankName": bank_info["bankName"],
+                "bankCode": bank_info["bankCode"],
+                "bankAccountNumber": bank_info["bankAccountNumber"],
+                "bankAccountHolder": bank_info["bankAccountHolder"],
             })
 
         # Students
         for i in range(num_students):
             uid = f"student_{i+1}"
+            avatar_url = build_avatar_url("student", i + 1)
             self.data["users"].append({
                 "uid": uid,
                 "fullName": f"HS {random_name()}",
                 "email": f"student{i+1}@lms.local",
                 "role": "STUDENT",
-                "avatarUrl": None,
+                "isActive": True,
+                "instructorRequestStatus": "NONE",
+                "instructorRequestSubmittedAt": None,
+                "instructorRequestReviewedAt": None,
+                "instructorRequestReviewedBy": None,
+                "instructorRequestRejectReason": None,
+                "instructorApplication": None,
+                "avatarUrl": avatar_url,
                 "createdAt": random_timestamp(self.profile["days_lookback"], BASE_TIMESTAMP_MS),
             })
         
@@ -178,7 +227,7 @@ class SeedDataBuilder:
                     "title": f"{random.choice(COURSE_TITLES_BY_CATEGORY.get(category['name'], ['Khóa học mẫu']))[:50]}",
                     "instructorId": instr_uid,
                     "instructorName": instr["fullName"] if instr else "Giảng viên",
-                    "thumbnailUrl": f"https://via.placeholder.com/300x200?text={course_id}",
+                    "thumbnailUrl": build_course_thumbnail_url(course_id),
                     "thumbnailPublicId": "",
                     "description": f"Khóa học {random.choice(COURSE_LEVELS)} về {category['name']}. Học mọi lúc mọi nơi.",
                     "categoryId": category["id"],
@@ -186,7 +235,7 @@ class SeedDataBuilder:
                     "price": random_price(*COURSE_PRICE_RANGE),
                     "rating": random_rating(*RATING_RANGE),
                     "reviewCount": random.randint(0, 20),
-                    "enrollmentCount": random.randint(*ENROLLMENT_COUNT_RANGE),
+                    "enrollmentCount": 0,
                     "lessonCount": 0,  # Sẽ cập nhật khi tạo lessons
                     "duration": f"{random.randint(10, 100)} giờ",
                     "isPublished": True,
@@ -260,6 +309,7 @@ class SeedDataBuilder:
         """Sinh enrollments và progress"""
         students = [u for u in self.data["users"] if u["role"] == "STUDENT"]
         courses = self.data["courses"]
+        enrollment_counter_by_course = {c["id"]: 0 for c in courses}
         
         for student in students:
             student_uid = student["uid"]
@@ -280,6 +330,7 @@ class SeedDataBuilder:
                     "courseId": course_id,
                     "enrolledAt": enroll_ts,
                 })
+                enrollment_counter_by_course[course_id] = enrollment_counter_by_course.get(course_id, 0) + 1
                 
                 # Progress cấp course
                 completion_rate = random.choice(PROGRESS_COMPLETION_RATES)
@@ -304,6 +355,9 @@ class SeedDataBuilder:
                         "courseId": course_id,
                         "isCompleted": l_idx < completed_lessons,
                     })
+
+        for course in courses:
+            course["enrollmentCount"] = enrollment_counter_by_course.get(course["id"], 0)
         
         print(f"✅ Tạo {len(self.data['enrollments'])} enrollments + progress")
 
@@ -326,7 +380,7 @@ class SeedDataBuilder:
                     "courseId": enrollment["courseId"],
                     "userId": enrollment["userId"],
                     "userName": student["fullName"],
-                    "userAvatarUrl": None,
+                    "userAvatarUrl": student.get("avatarUrl", ""),
                     "rating": random.randint(*REVIEW_RATING_RANGE),
                     "content": random.choice(REVIEW_CONTENTS),
                     "isEdited": False,
@@ -336,6 +390,40 @@ class SeedDataBuilder:
                 })
         
         print(f"✅ Tạo {len(self.data['reviews'])} reviews")
+
+    def seed_quiz_progress(self):
+        """Sinh quizProgress cho dữ liệu học tập."""
+        enrollments = self.data["enrollments"]
+        quizzes_by_course = {}
+        for quiz in self.data["quizzes"]:
+            quizzes_by_course.setdefault(quiz["courseId"], []).append(quiz)
+
+        for enrollment in enrollments:
+            user_id = enrollment["userId"]
+            course_id = enrollment["courseId"]
+            quizzes = quizzes_by_course.get(course_id, [])
+
+            for quiz in quizzes:
+                attempts = random.randint(*QUIZ_ATTEMPTS_RANGE)
+                best_score = random.randint(40, 100)
+                is_passed = best_score >= quiz["passingScore"]
+                total_questions = len(quiz.get("questions", []))
+                correct = int(round(total_questions * (best_score / 100.0)))
+
+                self.data["quizProgress"].append({
+                    "quizId": quiz["id"],
+                    "userId": user_id,
+                    "courseId": course_id,
+                    "attempts": attempts,
+                    "bestScore": best_score,
+                    "isPassed": is_passed,
+                    "lastAttemptAt": random_timestamp(self.profile["days_lookback"], BASE_TIMESTAMP_MS),
+                    "lastAnswers": [random.randint(0, 3) for _ in range(total_questions)],
+                    "lastCorrectCount": correct,
+                    "lastWrongCount": max(0, total_questions - correct),
+                })
+
+        print(f"✅ Tạo {len(self.data['quizProgress'])} quizProgress")
 
     def seed_carts_orders(self):
         """Sinh carts, cartItems, orders, orderItems"""
@@ -377,14 +465,26 @@ class SeedDataBuilder:
                 # Orders - 50% carts được checkout thành công
                 if random.random() > 0.5:
                     order_id = f"order_{student_uid}_{random.randint(1000, 9999)}"
+                    payee_instructor_id = cart_courses[0]["instructorId"] if cart_courses else ""
+                    payee = next((x for x in self.data["instructors"] if x["uid"] == payee_instructor_id), None)
+                    transfer_content = f"LMS {student_uid} {order_id}".upper()
                     self.data["orders"].append({
                         "id": order_id,
                         "userId": student_uid,
                         "itemCount": len(cart_courses),
-                        "paymentMethod": random.choice(PAYMENT_METHOD),
+                        "paymentMethod": "E_WALLET",
                         "paymentStatus": "SUCCESS",
                         "totalAmount": cart_total,
                         "createdAt": random_timestamp(self.profile["days_lookback"], BASE_TIMESTAMP_MS),
+                        "payeeInstructorId": payee_instructor_id,
+                        "bankName": (payee or {}).get("bankName", ""),
+                        "bankCode": (payee or {}).get("bankCode", ""),
+                        "bankAccountNumber": (payee or {}).get("bankAccountNumber", ""),
+                        "bankAccountHolder": (payee or {}).get("bankAccountHolder", ""),
+                        "transferContent": transfer_content,
+                        "transferContentNormalized": transfer_content.replace(" ", ""),
+                        "qrCodeUrl": "",
+                        "confirmedAt": random_timestamp(self.profile["days_lookback"], BASE_TIMESTAMP_MS),
                     })
                     
                     for course in cart_courses:
@@ -399,6 +499,50 @@ class SeedDataBuilder:
                         })
         
         print(f"✅ Tạo {len(self.data['carts'])} carts + {len(self.data['cartItems'])} cartItems + {len(self.data['orders'])} orders")
+
+    def seed_chat_data(self):
+        """Sinh chatSessions và chatMessages cơ bản cho chatbot."""
+        students = [u for u in self.data["users"] if u["role"] == "STUDENT"]
+
+        for student in students:
+            if random.random() > 0.7:
+                continue
+
+            session_id = f"chat_{student['uid']}_{random.randint(1000, 9999)}"
+            created_at = random_timestamp(self.profile["days_lookback"], BASE_TIMESTAMP_MS)
+            self.data["chatSessions"].append({
+                "id": session_id,
+                "userId": student["uid"],
+                "title": "Hỗ trợ học tập",
+                "status": "ACTIVE",
+                "lastMessageAt": created_at,
+                "createdAt": created_at,
+            })
+
+            message_pairs = random.randint(1, 3)
+            for idx in range(message_pairs):
+                user_ts = created_at + (idx * 60_000)
+                bot_ts = user_ts + 10_000
+                self.data["chatMessages"].append({
+                    "id": f"msg_u_{session_id}_{idx}",
+                    "sessionId": session_id,
+                    "sender": "USER",
+                    "content": "Cho tôi gợi ý khóa học phù hợp",
+                    "messageType": "TEXT",
+                    "metadata": {},
+                    "createdAt": user_ts,
+                })
+                self.data["chatMessages"].append({
+                    "id": f"msg_b_{session_id}_{idx}",
+                    "sessionId": session_id,
+                    "sender": "BOT",
+                    "content": "Mình đã tìm thấy một số khóa học phù hợp cho bạn.",
+                    "messageType": "TEXT",
+                    "metadata": {},
+                    "createdAt": bot_ts,
+                })
+
+        print(f"✅ Tạo {len(self.data['chatSessions'])} chatSessions + {len(self.data['chatMessages'])} chatMessages")
 
     def seed_notifications(self):
         """Sinh notifications"""
@@ -428,8 +572,10 @@ class SeedDataBuilder:
         self.seed_curriculum()
         self.seed_enrollments_progress()
         self.seed_reviews()
+        self.seed_quiz_progress()
         self.seed_carts_orders()
         self.seed_notifications()
+        self.seed_chat_data()
         print(f"\n✅ Hoàn thành xây dựng dữ liệu")
 
     def save_to_json(self, filename: str = "seed_data.json"):

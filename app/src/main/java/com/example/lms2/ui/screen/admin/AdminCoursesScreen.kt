@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
@@ -29,10 +31,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import com.example.lms2.data.model.Course
 import com.example.lms2.viewmodel.AdminManagementEvent
 import com.example.lms2.viewmodel.AdminManagementViewModel
@@ -106,31 +113,61 @@ private fun CourseManagementCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = course.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SubcomposeAsyncImage(
+                model = course.thumbnailUrl.ifBlank { "https://picsum.photos/seed/fallback_course/640/360" },
+                contentDescription = course.title,
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop,
+                loading = {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                    }
+                },
+                error = {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No image", style = MaterialTheme.typography.labelSmall)
+                    }
+                },
+                success = {
+                    SubcomposeAsyncImageContent()
+                }
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(course.instructorName, style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(10.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(onClick = {}, label = { Text(if (course.isPublished) "Đang xuất bản" else "Chưa xuất bản") })
-                AssistChip(onClick = {}, label = { Text("${course.enrollmentCount} học viên") })
-            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = course.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(course.instructorName, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(10.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(onClick = {}, label = { Text(if (course.isPublished) "Đang xuất bản" else "Chưa xuất bản") })
+                    AssistChip(onClick = {}, label = { Text("${course.enrollmentCount} học viên") })
+                }
 
-            Button(
-                onClick = onTogglePublish,
-                enabled = !disableAction,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (course.isPublished) "Ẩn khóa học" else "Xuất bản khóa học")
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onTogglePublish,
+                    enabled = !disableAction,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (course.isPublished) "Ẩn khóa học" else "Xuất bản khóa học")
+                }
             }
         }
     }

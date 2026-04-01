@@ -96,6 +96,14 @@ NOTIFICATION_TYPES = [
     "SYSTEM",
 ]
 
+BANK_CATALOG = [
+    {"name": "Vietcombank", "code": "970436"},
+    {"name": "BIDV", "code": "970418"},
+    {"name": "VietinBank", "code": "970415"},
+    {"name": "Techcombank", "code": "970407"},
+    {"name": "MBBank", "code": "970422"},
+]
+
 # ============================================
 # THAM SỐ SINH DỮ LIỆU
 # ============================================

@@ -152,7 +152,7 @@ class DataValidator:
             "carts.status": ["ACTIVE", "CHECKED_OUT", "ABANDONED"],
             "chatSessions.status": ["ACTIVE", "ARCHIVED", "CLOSED"],
             "chatMessages.sender": ["USER", "BOT", "SYSTEM"],
-            "orders.paymentMethod": ["E_WALLET", "BANK_TRANSFER"],
+            "orders.paymentMethod": ["E_WALLET"],
             "orders.paymentStatus": ["SUCCESS", "PENDING", "FAILED", "CANCELED"],
         }
         

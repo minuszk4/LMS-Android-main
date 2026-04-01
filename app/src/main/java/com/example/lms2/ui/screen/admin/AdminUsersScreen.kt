@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
@@ -34,9 +36,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.example.lms2.data.model.User
 import com.example.lms2.viewmodel.AdminManagementEvent
 import com.example.lms2.viewmodel.AdminManagementViewModel
@@ -195,25 +200,37 @@ private fun UserManagementCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(user.fullName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(user.email, style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(10.dp))
+        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AsyncImage(
+                model = user.avatarUrl?.ifBlank { null }
+                    ?: "https://i.pravatar.cc/256?u=${user.uid}",
+                contentDescription = user.fullName,
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop
+            )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(onClick = {}, label = { Text("Vai trò: ${user.role.name}") })
-                AssistChip(onClick = {}, label = { Text(if (user.isActive) "Đang hoạt động" else "Đang bị khóa") })
-            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(user.fullName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(user.email, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(10.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(onClick = {}, label = { Text("Vai trò: ${user.role.name}") })
+                    AssistChip(onClick = {}, label = { Text(if (user.isActive) "Đang hoạt động" else "Đang bị khóa") })
+                }
 
-            Button(
-                onClick = onToggleActive,
-                enabled = !disableToggle,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (user.isActive) "Khóa tài khoản" else "Mở khóa tài khoản")
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onToggleActive,
+                    enabled = !disableToggle,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (user.isActive) "Khóa tài khoản" else "Mở khóa tài khoản")
+                }
             }
         }
     }
