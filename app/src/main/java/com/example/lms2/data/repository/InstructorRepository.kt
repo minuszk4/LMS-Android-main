@@ -23,11 +23,27 @@ class InstructorRepository {
             val instructor = snapshot.toObject(Instructor::class.java)
                 ?: return ResultState.Error("Không đọc được thông tin giảng viên")
 
-            ResultState.Success(
-                normalizeInstructor(
-                    if (instructor.uid.isBlank()) instructor.copy(uid = snapshot.id) else instructor
-                )
+            val normalizedInstructor = normalizeInstructor(
+                if (instructor.uid.isBlank()) instructor.copy(uid = snapshot.id) else instructor
             )
+
+            if (shouldBackfillLegacyBankFields(instructor, normalizedInstructor)) {
+                runCatching {
+                    val backfillData = mapOf(
+                        "uid" to normalizedInstructor.uid,
+                        "bankName" to normalizedInstructor.bankName,
+                        "bankAccountNumber" to normalizedInstructor.bankAccountNumber,
+                        "bankAccount" to normalizedInstructor.bankAccount
+                    )
+
+                    instructorsCollection
+                        .document(snapshot.id)
+                        .set(backfillData, SetOptions.merge())
+                        .await()
+                }
+            }
+
+            ResultState.Success(normalizedInstructor)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Lấy thông tin giảng viên thất bại")
         }
@@ -107,10 +123,33 @@ class InstructorRepository {
     }
 
     fun hasValidBankInfo(instructor: Instructor): Boolean {
-        return instructor.bankName.isNotBlank() &&
+        if (
+            instructor.bankName.isNotBlank() &&
             instructor.bankCode.isNotBlank() &&
             instructor.bankAccountNumber.isNotBlank() &&
             instructor.bankAccountHolder.isNotBlank()
+        ) {
+            return true
+        }
+
+        return hasLegacyBankInfo(instructor)
+    }
+
+    private fun hasLegacyBankInfo(instructor: Instructor): Boolean {
+        if (instructor.bankAccount.isBlank()) return false
+
+        val parts = instructor.bankAccount.split("-", limit = 2).map { it.trim() }
+        val guessedBankName = parts.getOrNull(0).orEmpty()
+        val guessedAccountNumber = parts.getOrNull(1).orEmpty()
+
+        return guessedBankName.isNotBlank() && guessedAccountNumber.isNotBlank()
+    }
+
+    private fun shouldBackfillLegacyBankFields(original: Instructor, normalized: Instructor): Boolean {
+        if (original.bankAccount.isBlank()) return false
+
+        return (original.bankName.isBlank() && normalized.bankName.isNotBlank()) ||
+            (original.bankAccountNumber.isBlank() && normalized.bankAccountNumber.isNotBlank())
     }
 
     private fun normalizeInstructor(instructor: Instructor): Instructor {
@@ -127,7 +166,7 @@ class InstructorRepository {
             return instructor
         }
 
-        val parts = instructor.bankAccount.split("-").map { it.trim() }
+        val parts = instructor.bankAccount.split("-", limit = 2).map { it.trim() }
         val guessedBankName = if (parts.isNotEmpty()) parts[0] else ""
         val guessedAccountNumber = if (parts.size > 1) parts[1] else ""
 
