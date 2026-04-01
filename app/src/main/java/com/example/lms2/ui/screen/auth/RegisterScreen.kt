@@ -259,24 +259,6 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Checkbox(
-                    checked = uiState.applyInstructorRegistration,
-                    onCheckedChange = { viewModel.onApplyInstructorRegistrationChange(it) }
-                )
-                Text(
-                    text = "Tôi muốn đăng ký làm giảng viên (cần admin phê duyệt)",
-                    color = Color(0xFF334155),
-                    fontSize = 14.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
             /* ================= REGISTER BUTTON ================= */
             Button(
                 onClick = {

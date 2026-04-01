@@ -76,8 +76,7 @@ class AuthRepository {
     suspend fun register(
         email: String,
         password: String,
-        fullName: String,
-        applyInstructorRegistration: Boolean = false
+        fullName: String
     ): ResultState<String> {
         return try {
             val result = auth
@@ -92,16 +91,8 @@ class AuthRepository {
                     fullName = fullName,
                     email = email.trim(),
                     role = getInitialRole(firebaseUser.uid),
-                    instructorRequestStatus = if (applyInstructorRegistration) {
-                        InstructorApplicationStatus.PENDING
-                    } else {
-                        InstructorApplicationStatus.NONE
-                    },
-                    instructorRequestSubmittedAt = if (applyInstructorRegistration) {
-                        System.currentTimeMillis()
-                    } else {
-                        null
-                    },
+                    instructorRequestStatus = InstructorApplicationStatus.NONE,
+                    instructorRequestSubmittedAt = null,
                     createdAt = System.currentTimeMillis()
                 )
 

@@ -476,7 +476,8 @@ private fun MessageBubble(
                     isUser = isUser
                 )
             }
-            else -> {
+            ChatMessageType.FUNCTION_CALL,
+            ChatMessageType.TEXT -> {
                 // Default TEXT message
                 val cleanedText = message.content
                     .replace("**", "")

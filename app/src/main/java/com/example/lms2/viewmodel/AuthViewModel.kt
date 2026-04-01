@@ -77,10 +77,6 @@ class AuthViewModel(
         _uiState.value = _uiState.value.copy(confirmPassword = password)
     }
 
-    fun onApplyInstructorRegistrationChange(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(applyInstructorRegistration = enabled)
-    }
-
     fun togglePasswordVisibility() {
         _uiState.value = _uiState.value.copy(
             passwordVisible = !_uiState.value.passwordVisible
@@ -156,8 +152,7 @@ class AuthViewModel(
             when (val result = repository.register(
                 currentState.email, 
                 currentState.password, 
-                currentState.fullName,
-                currentState.applyInstructorRegistration
+                currentState.fullName
             )) {
                 is ResultState.Success -> {
                     _uiState.value = _uiState.value.copy(isLoading = false)

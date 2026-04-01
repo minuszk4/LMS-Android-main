@@ -309,6 +309,80 @@ class OpenRouterChatbotRepository {
                     "required" to listOf("categoryId")
                 )
             )
+        ),
+        OpenRouterTool(
+            function = OpenRouterToolFunction(
+                name = "get_enrolled_courses",
+                description = "Lấy danh sách các khóa học mà người dùng đã ghi danh.",
+                parameters = mapOf(
+                    "type" to "object",
+                    "properties" to emptyMap<String, Any>()
+                )
+            )
+        ),
+        OpenRouterTool(
+            function = OpenRouterToolFunction(
+                name = "get_course_reviews",
+                description = "Lấy đánh giá của một khóa học.",
+                parameters = mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "courseId" to mapOf(
+                            "type" to "string",
+                            "description" to "ID khóa học"
+                        ),
+                        "courseName" to mapOf(
+                            "type" to "string",
+                            "description" to "Tên khóa học (dùng khi không có ID)"
+                        )
+                    )
+                )
+            )
+        ),
+        OpenRouterTool(
+            function = OpenRouterToolFunction(
+                name = "get_user_notifications",
+                description = "Lấy danh sách thông báo gần đây của người dùng.",
+                parameters = mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "limit" to mapOf(
+                            "type" to "integer",
+                            "description" to "Số lượng thông báo"
+                        )
+                    )
+                )
+            )
+        ),
+        OpenRouterTool(
+            function = OpenRouterToolFunction(
+                name = "get_purchase_history",
+                description = "Lấy lịch sử mua hàng của người dùng.",
+                parameters = mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "limit" to mapOf(
+                            "type" to "integer",
+                            "description" to "Số lượng đơn hàng gần nhất"
+                        )
+                    )
+                )
+            )
+        ),
+        OpenRouterTool(
+            function = OpenRouterToolFunction(
+                name = "get_quiz_results",
+                description = "Lấy kết quả quiz gần đây của người dùng.",
+                parameters = mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "limit" to mapOf(
+                            "type" to "integer",
+                            "description" to "Số lượng kết quả quiz"
+                        )
+                    )
+                )
+            )
         )
     )
 
@@ -1141,6 +1215,135 @@ class OpenRouterChatbotRepository {
                     }
                 }
 
+                "get_enrolled_courses" -> {
+                    when (val enrollResult = enrollmentRepository.getUserEnrollments(userId)) {
+                        is ResultState.Success -> {
+                            val courses = mutableListOf<Map<String, Any>>()
+                            enrollResult.data.forEach { enrollment ->
+                                when (val courseResult = courseRepository.getCourseById(enrollment.courseId)) {
+                                    is ResultState.Success -> courses.add(courseToMap(courseResult.data))
+                                    else -> Unit
+                                }
+                            }
+                            mapOf("success" to true, "courses" to courses)
+                        }
+                        is ResultState.Error -> mapOf("success" to false, "error" to enrollResult.message)
+                        else -> mapOf("success" to false, "error" to "Unknown error")
+                    }
+                }
+
+                "get_course_reviews" -> {
+                    val candidates = resolveCourseCandidatesByArgs(args)
+                    val resolvedCourse = candidates.firstOrNull()
+                    if (candidates.size > 1) {
+                        mapOf(
+                            "success" to false,
+                            "needsSelection" to true,
+                            "action" to "get_course_reviews",
+                            "candidates" to candidates.take(5).map { mapOf("id" to it.id, "title" to it.title) }
+                        )
+                    } else if (resolvedCourse == null) {
+                        mapOf("success" to false, "error" to "Không tìm thấy khóa học theo tên hoặc ID đã cung cấp")
+                    } else {
+                        val snapshot = firestore.collection("reviews")
+                            .whereEqualTo("courseId", resolvedCourse.id)
+                            .limit(20)
+                            .get()
+                            .await()
+
+                        val reviews = snapshot.documents.map { doc ->
+                            val data = doc.data.orEmpty()
+                            mapOf(
+                                "id" to doc.id,
+                                "rating" to ((data["rating"] as? Number)?.toDouble() ?: 0.0),
+                                "comment" to (data["comment"] as? String ?: ""),
+                                "userId" to (data["userId"] as? String ?: ""),
+                                "createdAt" to ((data["createdAt"] as? Number)?.toLong() ?: 0L)
+                            )
+                        }
+
+                        mapOf(
+                            "success" to true,
+                            "courseId" to resolvedCourse.id,
+                            "courseName" to resolvedCourse.title,
+                            "reviews" to reviews
+                        )
+                    }
+                }
+
+                "get_user_notifications" -> {
+                    val limit = (args["limit"] as? Number)?.toLong() ?: 20L
+                    val snapshot = firestore.collection("notifications")
+                        .whereEqualTo("userId", userId)
+                        .limit(limit.coerceIn(1L, 50L))
+                        .get()
+                        .await()
+
+                    val notifications = snapshot.documents
+                        .map { doc ->
+                            val data = doc.data.orEmpty()
+                            mapOf(
+                                "id" to doc.id,
+                                "title" to (data["title"] as? String ?: ""),
+                                "body" to (data["body"] as? String ?: ""),
+                                "type" to (data["type"] as? String ?: ""),
+                                "readAt" to ((data["readAt"] as? Number)?.toLong() ?: 0L),
+                                "createdAt" to ((data["createdAt"] as? Number)?.toLong() ?: 0L)
+                            )
+                        }
+                        .sortedByDescending { (it["createdAt"] as? Long) ?: 0L }
+
+                    mapOf("success" to true, "notifications" to notifications)
+                }
+
+                "get_purchase_history" -> {
+                    val limit = (args["limit"] as? Number)?.toLong() ?: 20L
+                    val snapshot = firestore.collection("orders")
+                        .whereEqualTo("userId", userId)
+                        .limit(limit.coerceIn(1L, 50L))
+                        .get()
+                        .await()
+
+                    val orders = snapshot.documents
+                        .map { doc ->
+                            val data = doc.data.orEmpty()
+                            mapOf(
+                                "id" to doc.id,
+                                "amount" to ((data["amount"] as? Number)?.toLong() ?: 0L),
+                                "status" to (data["status"] as? String ?: ""),
+                                "paymentMethod" to (data["paymentMethod"] as? String ?: ""),
+                                "createdAt" to ((data["createdAt"] as? Number)?.toLong() ?: 0L)
+                            )
+                        }
+                        .sortedByDescending { (it["createdAt"] as? Long) ?: 0L }
+
+                    mapOf("success" to true, "orders" to orders)
+                }
+
+                "get_quiz_results" -> {
+                    val limit = (args["limit"] as? Number)?.toLong() ?: 20L
+                    val snapshot = firestore.collection("quizProgress")
+                        .whereEqualTo("userId", userId)
+                        .limit(limit.coerceIn(1L, 50L))
+                        .get()
+                        .await()
+
+                    val results = snapshot.documents
+                        .map { doc ->
+                            val data = doc.data.orEmpty()
+                            mapOf(
+                                "id" to doc.id,
+                                "courseId" to (data["courseId"] as? String ?: ""),
+                                "quizId" to (data["quizId"] as? String ?: ""),
+                                "score" to ((data["score"] as? Number)?.toDouble() ?: 0.0),
+                                "submittedAt" to ((data["submittedAt"] as? Number)?.toLong() ?: 0L)
+                            )
+                        }
+                        .sortedByDescending { (it["submittedAt"] as? Long) ?: 0L }
+
+                    mapOf("success" to true, "quizResults" to results)
+                }
+
                 else -> mapOf("success" to false, "error" to "Function not found: $functionName")
             }
         } catch (e: Exception) {
@@ -1163,7 +1366,7 @@ class OpenRouterChatbotRepository {
                     if (metadata.isNotEmpty()) return Pair(ChatMessageType.PROGRESS_CHART, metadata)
                 }
 
-                "recommend_new_courses", "search_courses" -> {
+                "recommend_new_courses", "search_courses", "get_enrolled_courses" -> {
                     val metadata = extractMetadataFromCourseList(functionResult)
                     if (metadata.isNotEmpty()) return Pair(ChatMessageType.COURSE_LIST, metadata)
                 }
