@@ -289,6 +289,57 @@ class NotificationRepository {
         )
     }
 
+    fun studyReminderTemplate(courseTitle: String? = null): NotificationTemplate {
+        val normalizedCourseTitle = courseTitle?.trim().orEmpty()
+        val body = if (normalizedCourseTitle.isNotBlank()) {
+            "Bạn đã đăng ký khóa $normalizedCourseTitle. Dành 15-20 phút hôm nay để bắt đầu bài học đầu tiên nhé."
+        } else {
+            "Dành 15-20 phút hôm nay để tiếp tục bài học dang dở và giữ nhịp học tập nhé."
+        }
+        return NotificationTemplate(
+            title = "Nhắc nhở học bài",
+            body = body
+        )
+    }
+
+    suspend fun addStudyReminderIfNeeded(
+        userId: String,
+        courseTitle: String? = null,
+        cooldownHours: Int = 24
+    ): ResultState<Unit> {
+        if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
+
+        return try {
+            val now = System.currentTimeMillis()
+            val cooldownMs = cooldownHours.coerceAtLeast(1) * 60L * 60L * 1000L
+            val recentReminderSnapshot = notificationsCollection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("type", NotificationType.STUDY_REMINDER.name)
+                .whereGreaterThanOrEqualTo("createdAt", now - cooldownMs)
+                .limit(1)
+                .get()
+                .await()
+
+            if (!recentReminderSnapshot.isEmpty) {
+                return ResultState.Success(Unit)
+            }
+
+            val template = studyReminderTemplate(courseTitle)
+            addNotification(
+                NotificationItem(
+                    userId = userId,
+                    title = template.title,
+                    body = template.body,
+                    type = NotificationType.STUDY_REMINDER,
+                    isRead = false,
+                    createdAt = now
+                )
+            )
+        } catch (e: Exception) {
+            ResultState.Error(e.message ?: "Tạo thông báo nhắc học thất bại")
+        }
+    }
+
 
     // Dữ liệu mẫu để demo UI khi cần.
     suspend fun getNotificationsMock(userId: String): ResultState<List<NotificationItem>> {

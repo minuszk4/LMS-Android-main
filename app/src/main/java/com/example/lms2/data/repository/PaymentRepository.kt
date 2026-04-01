@@ -517,6 +517,13 @@ class PaymentRepository {
                             createdAt = confirmedOrder.confirmedAt.ifBlankIfZero(confirmedOrder.createdAt)
                         )
                     )
+
+                    val firstCourseTitle = orderItems.firstOrNull()?.courseTitle
+                    notificationRepository.addStudyReminderIfNeeded(
+                        userId = confirmedOrder.userId,
+                        courseTitle = firstCourseTitle,
+                        cooldownHours = 24
+                    )
                 }
             }
 

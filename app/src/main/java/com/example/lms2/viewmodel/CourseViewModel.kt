@@ -116,7 +116,7 @@ class CourseViewModel(
             if (userId.isBlank()) {
                 when (val fallbackResult = repository.getAllPublishedCourses()) {
                     is ResultState.Success -> {
-                        val courses = fallbackResult.data.take(6)
+                        val courses = fallbackResult.data.take(5)
                         _uiState.update { it.copy(isLoading = false, suggestedCourses = courses) }
                     }
                     is ResultState.Error -> {
@@ -130,15 +130,15 @@ class CourseViewModel(
                 return@launch
             }
 
-            when (val result = recommendationRepository.getRecommendedCourses(userId, limit = 6)) {
+            when (val result = recommendationRepository.getRecommendedCourses(userId, limit = 5)) {
                 is ResultState.Success -> {
-                    _uiState.update { it.copy(isLoading = false, suggestedCourses = result.data) }
+                    _uiState.update { it.copy(isLoading = false, suggestedCourses = result.data.take(5)) }
                 }
                 is ResultState.Error -> {
                     // Fallback to published courses if recommendation fails.
                     when (val fallbackResult = repository.getAllPublishedCourses()) {
                         is ResultState.Success -> {
-                            val courses = fallbackResult.data.take(6)
+                            val courses = fallbackResult.data.take(5)
                             _uiState.update { it.copy(isLoading = false, suggestedCourses = courses) }
                         }
                         is ResultState.Error -> {

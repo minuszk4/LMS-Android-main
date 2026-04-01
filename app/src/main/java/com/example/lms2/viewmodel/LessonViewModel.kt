@@ -117,7 +117,6 @@ class LessonViewModel(
 
     private fun validate(): Boolean {
         val state = _uiState.value
-        val youtubeRegex = "^(https?://)?(www\\.)?(youtube\\.com|youtu\\.be)/.+$".toRegex()
         var isValid = true
 
         if (state.title.isBlank()) {
@@ -128,8 +127,8 @@ class LessonViewModel(
             _uiState.update { it.copy(descriptionError = "Vui lòng nhập mô tả") }
             isValid = false
         }
-        if (state.videoUrl.isBlank() || !state.videoUrl.matches(youtubeRegex)) {
-            _uiState.update { it.copy(videoUrlError = "Link YouTube không hợp lệ") }
+        if (state.videoUrl.isBlank()) {
+            _uiState.update { it.copy(videoUrlError = "Vui lòng nhập link video") }
             isValid = false
         }
         if (state.duration.isBlank()) {

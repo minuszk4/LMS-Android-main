@@ -7,10 +7,13 @@ import com.example.lms2.data.model.Quiz
 import com.example.lms2.util.ResultState
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Transaction
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
+import kotlin.math.max
 
 class CurriculumRepository {
     private val firestore = FirebaseFirestore.getInstance()
@@ -27,21 +30,26 @@ class CurriculumRepository {
         return try {
             val docRef = lessonsCollection.document()
             val now = System.currentTimeMillis()
-            val newLesson = lesson.copy(
-                id = docRef.id,
-                createdAt = now,
-                updatedAt = now
-            )
-            
-            firestore.runBatch { batch ->
-                // 1. Tạo bài học mới
-                batch.set(docRef, newLesson)
-                // 2. Tăng lessonCount của khóa học
+
+            val createdId = firestore.runTransaction { txn ->
+                val nextOrderIndex = getNextOrderIndex(txn, lesson.courseId)
+                val newLesson = lesson.copy(
+                    id = docRef.id,
+                    orderIndex = nextOrderIndex,
+                    createdAt = now,
+                    updatedAt = now
+                )
+
+                txn.set(docRef, newLesson)
+
+                // Tăng lessonCount của khóa học trong cùng transaction để tránh lệch
                 val courseRef = coursesCollection.document(lesson.courseId)
-                batch.update(courseRef, "lessonCount", FieldValue.increment(1))
+                txn.update(courseRef, "lessonCount", FieldValue.increment(1))
+
+                docRef.id
             }.await()
-            
-            ResultState.Success(docRef.id)
+
+            ResultState.Success(createdId)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Tạo bài học thất bại")
         }
@@ -82,12 +90,19 @@ class CurriculumRepository {
         return try {
             val docRef = quizzesCollection.document()
             val now = System.currentTimeMillis()
-            val newQuiz = quiz.copy(
-                id = docRef.id,
-                createdAt = now,
-                updatedAt = now
-            )
-            docRef.set(newQuiz).await()
+
+            val createdId = firestore.runTransaction { txn ->
+                val nextOrderIndex = getNextOrderIndex(txn, quiz.courseId)
+                val newQuiz = quiz.copy(
+                    id = docRef.id,
+                    orderIndex = nextOrderIndex,
+                    createdAt = now,
+                    updatedAt = now
+                )
+
+                txn.set(docRef, newQuiz)
+                docRef.id
+            }.await()
 
             runCatching {
                 val template = notificationRepository.quizCreatedTemplate(quiz.title)
@@ -99,7 +114,7 @@ class CurriculumRepository {
                 )
             }
 
-            ResultState.Success(docRef.id)
+            ResultState.Success(createdId)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Tạo bài kiểm tra thất bại")
         }
@@ -180,5 +195,33 @@ class CurriculumRepository {
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Cập nhật thứ tự thất bại")
         }
+    }
+
+    private fun getNextOrderIndex(txn: Transaction, courseId: String): Int {
+        val lastLessonIndex = txn.get(
+            lessonsCollection
+                .whereEqualTo("courseId", courseId)
+                .orderBy("orderIndex", Query.Direction.DESCENDING)
+                .limit(1)
+        )
+            .documents
+            .firstOrNull()
+            ?.getLong("orderIndex")
+            ?.toInt()
+            ?: -1
+
+        val lastQuizIndex = txn.get(
+            quizzesCollection
+                .whereEqualTo("courseId", courseId)
+                .orderBy("orderIndex", Query.Direction.DESCENDING)
+                .limit(1)
+        )
+            .documents
+            .firstOrNull()
+            ?.getLong("orderIndex")
+            ?.toInt()
+            ?: -1
+
+        return max(lastLessonIndex, lastQuizIndex) + 1
     }
 }
