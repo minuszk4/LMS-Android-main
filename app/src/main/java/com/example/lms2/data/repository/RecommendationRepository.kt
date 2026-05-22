@@ -5,6 +5,7 @@ import com.example.lms2.data.model.Course
 import com.example.lms2.data.model.CourseLevel
 import com.example.lms2.util.ResultState
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -15,17 +16,19 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 import kotlin.math.exp
 
 class RecommendationRepository {
 
     private companion object {
-        const val HEURISTIC_WEIGHT = 0.35
-        const val BACKEND_WEIGHT = 0.65
+        const val HEURISTIC_WEIGHT = 0.25
+        const val BACKEND_WEIGHT = 0.75
         const val BACKEND_TIMEOUT_SECONDS = 12L
         const val BACKEND_RECOMMENDATION_PATH = "/recommendations"
+        const val BACKEND_FEEDBACK_PATH = "/recommendation-feedback"
     }
-    
+
     private val firestore = FirebaseFirestore.getInstance()
     private val coursesCollection = firestore.collection("courses")
     private val enrollmentsCollection = firestore.collection("enrollments")
@@ -48,41 +51,17 @@ class RecommendationRepository {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
-            val enrolledCoursesSnapshot = enrollmentsCollection
-                .whereEqualTo("userId", userId)
-                .get()
-                .await()
-
-            val enrolledCourseIds = enrolledCoursesSnapshot.documents
-                .mapNotNull { it.getString("courseId") }
-                .toSet()
-
-            val coursesSnapshot = coursesCollection
-                .whereEqualTo("isPublished", true)
-                .get()
-                .await()
-
-            val allCourses = coursesSnapshot.documents.mapNotNull { doc ->
-                doc.toObject(Course::class.java)?.copy(id = doc.id)
-            }
-
+            val enrolledCourseIds = loadEnrolledCourseIds(userId)
+            val allCourses = loadPublishedCourses()
             val availableCourses = allCourses.filter { it.id !in enrolledCourseIds }
             if (availableCourses.isEmpty()) {
                 return ResultState.Success(emptyList())
             }
 
             if (enrolledCourseIds.isEmpty()) {
-                return ResultState.Success(
-                    availableCourses
-                        .sortedWith(
-                            compareByDescending<Course> { it.enrollmentCount }
-                                .thenByDescending { it.rating }
-                        )
-                        .take(limit)
-                )
+                return ResultState.Success(rankFallbackCourses(availableCourses).take(limit))
             }
 
-            val enrolledCourses = allCourses.filter { it.id in enrolledCourseIds }
             val progressSnapshot = progressCollection
                 .whereEqualTo("userId", userId)
                 .get()
@@ -90,7 +69,7 @@ class RecommendationRepository {
 
             val userProfile = buildUserProfile(
                 userId = userId,
-                enrolledCourses = enrolledCourses,
+                enrolledCourses = allCourses.filter { it.id in enrolledCourseIds },
                 progressSnapshot = progressSnapshot,
                 courseById = allCourses.associateBy { it.id }
             )
@@ -98,27 +77,13 @@ class RecommendationRepository {
             val backendScores = fetchBackendRecommendations(
                 userId = userId,
                 limit = limit,
-                candidateCourseIds = availableCourses.map { it.id }
+                candidateCourseIds = availableCourses.map { it.id },
+                source = "app_home"
             )
 
-            val recommendedCourses = availableCourses
-                .map { course ->
-                    val heuristicScore = calculateHeuristicScore(userProfile, course)
-                    val backendScore = backendScores[course.id]
-                    val finalScore = if (backendScore != null) {
-                        (heuristicScore * HEURISTIC_WEIGHT) + (backendScore * BACKEND_WEIGHT)
-                    } else {
-                        heuristicScore
-                    }
-                    course to finalScore
-                }
-                .sortedByDescending { it.second }
-                .take(limit)
-                .map { it.first }
-
-            ResultState.Success(recommendedCourses)
-        } catch (e: Exception) {
-            ResultState.Error(e.message ?: "Lấy gợi ý khóa học thất bại")
+            ResultState.Success(rankCourses(availableCourses, userProfile, backendScores).take(limit))
+        } catch (_: Exception) {
+            fallbackRecommendedCourses(limit = limit)
         }
     }
 
@@ -130,24 +95,10 @@ class RecommendationRepository {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
-            val enrolledCoursesSnapshot = enrollmentsCollection
-                .whereEqualTo("userId", userId)
-                .get()
-                .await()
-
-            val enrolledCourseIds = enrolledCoursesSnapshot.documents
-                .mapNotNull { it.getString("courseId") }
-                .toSet()
-
-            val coursesSnapshot = coursesCollection
-                .whereEqualTo("categoryId", categoryId)
-                .whereEqualTo("isPublished", true)
-                .get()
-                .await()
-
-            val categoryCourses = coursesSnapshot.documents.mapNotNull { doc ->
-                doc.toObject(Course::class.java)?.copy(id = doc.id)
-            }.filter { it.id !in enrolledCourseIds }
+            val enrolledCourseIds = loadEnrolledCourseIds(userId)
+            val allPublishedCourses = loadPublishedCourses()
+            val categoryCourses = allPublishedCourses
+                .filter { it.categoryId == categoryId && it.id !in enrolledCourseIds }
 
             if (categoryCourses.isEmpty()) {
                 return ResultState.Success(emptyList())
@@ -160,36 +111,22 @@ class RecommendationRepository {
 
             val userProfile = buildUserProfile(
                 userId = userId,
-                enrolledCourses = categoryCourses.filter { it.id in enrolledCourseIds },
+                enrolledCourses = allPublishedCourses.filter { it.id in enrolledCourseIds },
                 progressSnapshot = progressSnapshot,
-                courseById = categoryCourses.associateBy { it.id }
+                courseById = allPublishedCourses.associateBy { it.id }
             )
 
             val backendScores = fetchBackendRecommendations(
                 userId = userId,
                 limit = limit,
                 candidateCourseIds = categoryCourses.map { it.id },
-                categoryId = categoryId
+                categoryId = categoryId,
+                source = "app_category"
             )
 
-            val recommendedCourses = categoryCourses
-                .map { course ->
-                    val heuristicScore = calculateHeuristicScore(userProfile, course)
-                    val backendScore = backendScores[course.id]
-                    val finalScore = if (backendScore != null) {
-                        (heuristicScore * HEURISTIC_WEIGHT) + (backendScore * BACKEND_WEIGHT)
-                    } else {
-                        heuristicScore
-                    }
-                    course to finalScore
-                }
-                .sortedByDescending { it.second }
-                .take(limit)
-                .map { it.first }
-
-            ResultState.Success(recommendedCourses)
-        } catch (e: Exception) {
-            ResultState.Error(e.message ?: "Lấy gợi ý khóa học theo danh mục thất bại")
+            ResultState.Success(rankCourses(categoryCourses, userProfile, backendScores).take(limit))
+        } catch (_: Exception) {
+            fallbackRecommendedCourses(limit = limit, categoryId = categoryId)
         }
     }
 
@@ -197,7 +134,8 @@ class RecommendationRepository {
         userId: String,
         limit: Int,
         candidateCourseIds: List<String>,
-        categoryId: String? = null
+        categoryId: String? = null,
+        source: String = "app"
     ): Map<String, Double> {
         if (recommendationBackendUrl.isBlank()) return emptyMap()
 
@@ -208,6 +146,7 @@ class RecommendationRepository {
                     put("limit", limit)
                     put("candidateCourseIds", JSONArray(candidateCourseIds))
                     categoryId?.takeIf { it.isNotBlank() }?.let { put("categoryId", it) }
+                    put("source", source)
                 }
 
                 val request = Request.Builder()
@@ -231,6 +170,66 @@ class RecommendationRepository {
         }
     }
 
+    suspend fun logRecommendationFeedback(
+        userId: String,
+        courseId: String,
+        eventType: String,
+        source: String,
+        modelVersion: String? = null
+    ): ResultState<Unit> {
+        if (recommendationBackendUrl.isBlank()) return ResultState.Success(Unit)
+        if (userId.isBlank() || courseId.isBlank() || eventType.isBlank()) return ResultState.Success(Unit)
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val payload = JSONObject().apply {
+                    put("userId", userId)
+                    put("courseId", courseId)
+                    put("eventType", eventType)
+                    put("source", source)
+                    modelVersion?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
+                }
+
+                val request = Request.Builder()
+                    .url("$recommendationBackendUrl$BACKEND_FEEDBACK_PATH")
+                    .post(
+                        payload.toString().toRequestBody(
+                            "application/json; charset=utf-8".toMediaType()
+                        )
+                    )
+                    .build()
+
+                httpClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        ResultState.Success(Unit)
+                    } else {
+                        ResultState.Error("Feedback logging failed with code ${response.code}")
+                    }
+                }
+            } catch (e: Exception) {
+                ResultState.Error(e.message ?: "Feedback logging failed")
+            }
+        }
+    }
+
+    suspend fun logRecommendationImpressions(
+        userId: String,
+        courseIds: List<String>,
+        source: String,
+        modelVersion: String? = null
+    ) {
+        if (userId.isBlank()) return
+        courseIds.distinct().forEach { courseId ->
+            logRecommendationFeedback(
+                userId = userId,
+                courseId = courseId,
+                eventType = "IMPRESSION",
+                source = source,
+                modelVersion = modelVersion
+            )
+        }
+    }
+
     private fun parseBackendScores(
         json: JSONObject,
         candidateCourseIds: List<String>
@@ -249,7 +248,10 @@ class RecommendationRepository {
                 is String -> {
                     val courseId = item.trim()
                     if (courseId.isNotBlank() && courseId in candidateCourseIds) {
-                        scores[courseId] = maxOf(scores[courseId] ?: 0.0, normalizedRankScore(index, array.length(), Double.NaN))
+                        scores[courseId] = maxOf(
+                            scores[courseId] ?: 0.0,
+                            normalizedRankScore(index, array.length(), Double.NaN)
+                        )
                     }
                 }
 
@@ -294,12 +296,13 @@ class RecommendationRepository {
     private fun buildUserProfile(
         userId: String,
         enrolledCourses: List<Course>,
-        progressSnapshot: com.google.firebase.firestore.QuerySnapshot,
+        progressSnapshot: QuerySnapshot,
         courseById: Map<String, Course>
     ): UserProfile {
         val categoryWeights = mutableMapOf<String, Double>()
         val levelWeights = mutableMapOf<CourseLevel, Double>()
         val instructorWeights = mutableMapOf<String, Double>()
+        val weightedPrices = mutableListOf<Double>()
 
         val progressWeights = buildCourseInteractionWeights(
             userId = userId,
@@ -313,6 +316,11 @@ class RecommendationRepository {
             categoryWeights[course.categoryId] = (categoryWeights[course.categoryId] ?: 0.0) + weight
             levelWeights[course.level] = (levelWeights[course.level] ?: 0.0) + weight
             instructorWeights[course.instructorId] = (instructorWeights[course.instructorId] ?: 0.0) + weight
+            if (course.price > 0.0) {
+                repeat(maxOf(1, (weight * 2.0).toInt())) {
+                    weightedPrices += course.price
+                }
+            }
         }
 
         val totalWeight = enrolledCourses.size.toDouble().coerceAtLeast(1.0)
@@ -323,13 +331,16 @@ class RecommendationRepository {
         return UserProfile(
             categoryWeights = categoryWeights,
             levelWeights = levelWeights,
-            instructorWeights = instructorWeights
+            instructorWeights = instructorWeights,
+            averagePrice = if (weightedPrices.isEmpty()) 0.0 else weightedPrices.average(),
+            minPrice = weightedPrices.minOrNull() ?: 0.0,
+            maxPrice = weightedPrices.maxOrNull() ?: 0.0
         )
     }
 
     private fun buildCourseInteractionWeights(
         userId: String,
-        progressSnapshot: com.google.firebase.firestore.QuerySnapshot,
+        progressSnapshot: QuerySnapshot,
         enrolledCourseIds: Set<String>,
         courseById: Map<String, Course>
     ): Map<String, Double> {
@@ -367,6 +378,35 @@ class RecommendationRepository {
         return weights
     }
 
+    private fun rankCourses(
+        courses: List<Course>,
+        userProfile: UserProfile,
+        backendScores: Map<String, Double>
+    ): List<Course> {
+        return courses
+            .map { course ->
+                val heuristicScore = calculateHeuristicScore(userProfile, course)
+                val backendScore = backendScores[course.id]
+                val finalScore = if (backendScore != null) {
+                    (heuristicScore * HEURISTIC_WEIGHT) + (backendScore * BACKEND_WEIGHT)
+                } else {
+                    heuristicScore
+                }
+                course to finalScore
+            }
+            .sortedByDescending { it.second }
+            .map { it.first }
+    }
+
+    private fun rankFallbackCourses(courses: List<Course>): List<Course> {
+        return courses.sortedWith(
+            compareByDescending<Course> { it.rating }
+                .thenByDescending { it.reviewCount }
+                .thenByDescending { it.enrollmentCount }
+                .thenByDescending { it.createdAt }
+        )
+    }
+
     private fun calculateHeuristicScore(
         userProfile: UserProfile,
         course: Course
@@ -374,17 +414,79 @@ class RecommendationRepository {
         val categoryWeight = userProfile.categoryWeights[course.categoryId] ?: 0.0
         val levelWeight = userProfile.levelWeights[course.level] ?: 0.0
         val instructorWeight = userProfile.instructorWeights[course.instructorId] ?: 0.0
+        val priceAffinity = calculatePriceAffinity(userProfile, course)
+        val freshnessScore = calculateFreshnessScore(course)
+        val reviewScore = course.reviewCount.coerceAtMost(200) / 200.0
 
-        val profileScore = (categoryWeight * 0.45) + (levelWeight * 0.30) + (instructorWeight * 0.25)
-        val popularityScore = (course.rating / 5.0) * 0.5 +
-            (course.enrollmentCount.coerceAtMost(100) / 100.0) * 0.5
+        val profileScore = (categoryWeight * 0.30) +
+            (levelWeight * 0.18) +
+            (instructorWeight * 0.16) +
+            (priceAffinity * 0.18) +
+            (freshnessScore * 0.18)
+        val popularityScore = (course.rating / 5.0) * 0.45 +
+            (course.enrollmentCount.coerceAtMost(500) / 500.0) * 0.35 +
+            reviewScore * 0.20
 
-        return (profileScore * 0.7) + (popularityScore * 0.3)
+        return (profileScore * 0.60) + (popularityScore * 0.40)
+    }
+
+    private fun calculatePriceAffinity(
+        userProfile: UserProfile,
+        course: Course
+    ): Double {
+        if (userProfile.averagePrice <= 0.0 || course.price <= 0.0) return 0.5
+        val span = maxOf(userProfile.maxPrice - userProfile.minPrice, userProfile.averagePrice * 0.5, 1.0)
+        val normalizedGap = (abs(course.price - userProfile.averagePrice) / span).coerceIn(0.0, 1.0)
+        return 1.0 - normalizedGap
+    }
+
+    private fun calculateFreshnessScore(course: Course): Double {
+        val nowMs = System.currentTimeMillis()
+        val ageDays = ((nowMs - course.createdAt).coerceAtLeast(0L)) / (24 * 60 * 60 * 1000.0)
+        return exp(-ageDays / 180.0).coerceIn(0.15, 1.0)
+    }
+
+    private suspend fun loadPublishedCourses(): List<Course> {
+        val snapshot = coursesCollection
+            .whereEqualTo("isPublished", true)
+            .get()
+            .await()
+        return snapshot.documents.mapNotNull { doc ->
+            doc.toObject(Course::class.java)?.copy(id = doc.id)
+        }
+    }
+
+    private suspend fun loadEnrolledCourseIds(userId: String): Set<String> {
+        return enrollmentsCollection
+            .whereEqualTo("userId", userId)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { it.getString("courseId") }
+            .toSet()
+    }
+
+    private suspend fun fallbackRecommendedCourses(
+        limit: Int,
+        categoryId: String? = null
+    ): ResultState<List<Course>> {
+        return try {
+            val fallbackCourses = loadPublishedCourses()
+                .asSequence()
+                .filter { categoryId.isNullOrBlank() || it.categoryId == categoryId }
+                .toList()
+            ResultState.Success(rankFallbackCourses(fallbackCourses).take(limit))
+        } catch (fallbackException: Exception) {
+            ResultState.Error(fallbackException.message ?: "Lấy gợi ý khóa học thất bại")
+        }
     }
 
     private data class UserProfile(
         val categoryWeights: Map<String, Double>,
         val levelWeights: Map<CourseLevel, Double>,
-        val instructorWeights: Map<String, Double>
+        val instructorWeights: Map<String, Double>,
+        val averagePrice: Double = 0.0,
+        val minPrice: Double = 0.0,
+        val maxPrice: Double = 0.0
     )
 }

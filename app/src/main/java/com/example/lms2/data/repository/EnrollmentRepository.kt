@@ -1,7 +1,7 @@
 package com.example.lms2.data.repository
 
-import com.example.lms2.data.cache.RepositoryCache
 import com.example.lms2.data.cache.CacheTTL
+import com.example.lms2.data.cache.RepositoryCache
 import com.example.lms2.data.model.Enrollment
 import com.example.lms2.data.paging.PageRequest
 import com.example.lms2.data.paging.PageResult
@@ -15,10 +15,16 @@ class EnrollmentRepository {
     private val firestore = FirebaseFirestore.getInstance()
     private val enrollmentsCollection = firestore.collection("enrollments")
     private val enrollmentCachePrefix = "enrollments:user"
+    private val recommendationRepository = RecommendationRepository()
 
     suspend fun enrollCourse(userId: String, courseId: String): ResultState<Unit> {
         return try {
             val id = "${userId}_${courseId}"
+            val existing = enrollmentsCollection.document(id).get().await()
+            if (existing.exists()) {
+                return ResultState.Success(Unit)
+            }
+
             val enrollment = Enrollment(
                 id = id,
                 userId = userId,
@@ -27,6 +33,12 @@ class EnrollmentRepository {
             )
             enrollmentsCollection.document(id).set(enrollment).await()
             invalidateEnrollmentCache(userId)
+            recommendationRepository.logRecommendationFeedback(
+                userId = userId,
+                courseId = courseId,
+                eventType = "ENROLL",
+                source = "manual_enrollment"
+            )
             ResultState.Success(Unit)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Đăng ký khóa học thất bại")
@@ -82,6 +94,18 @@ class EnrollmentRepository {
             ResultState.Success(enrollments)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Lấy danh sách đăng ký thất bại")
+        }
+    }
+
+    suspend fun getAllEnrollments(): ResultState<List<Enrollment>> {
+        return try {
+            val snapshot = enrollmentsCollection
+                .orderBy("enrolledAt", Query.Direction.DESCENDING)
+                .get()
+                .await()
+            ResultState.Success(snapshot.toObjects(Enrollment::class.java))
+        } catch (e: Exception) {
+            ResultState.Error(e.message ?: "Lấy tất cả đăng ký thất bại")
         }
     }
 

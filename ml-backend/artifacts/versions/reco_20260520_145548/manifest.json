@@ -1,0 +1,34 @@
+{
+  "modelType": "random_forest_classifier",
+  "trainedAt": 1779263748060,
+  "status": "ACTIVE",
+  "dataSource": "SEED",
+  "trainingSampleCount": 300,
+  "positiveSampleCount": 167,
+  "negativeSampleCount": 133,
+  "metrics": {
+    "evaluatedUsers": 20,
+    "recallAt5": 0.7,
+    "precisionAt5": 0.14,
+    "ndcgAt5": 0.4563670800167056,
+    "recallAt10": 1.0,
+    "precisionAt10": 0.10000000000000002,
+    "ndcgAt10": 0.5609418507716434
+  },
+  "windowDays": 90,
+  "featureNames": [
+    "category_affinity",
+    "level_affinity",
+    "instructor_affinity",
+    "rating",
+    "enrollment_count",
+    "lesson_count",
+    "recency_weight"
+  ],
+  "id": "reco_20260520_145548",
+  "artifactPath": "C:\\Users\\tranv\\Downloads\\LMS-Android-main\\LMS-Android-main\\ml-backend\\artifacts\\versions\\reco_20260520_145548\\recommendation_model.pkl",
+  "artifactFormat": "pickle",
+  "artifactSha256": "8df03ca4c3751eb4572f99b69e61607635d7761e6daed4a07c1f88d415bd2b36",
+  "artifactSizeBytes": 230709,
+  "savedAt": 1779263748064
+}

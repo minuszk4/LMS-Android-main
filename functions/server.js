@@ -355,6 +355,34 @@ async function upsertBankTransaction(payload) {
   return { docId, status: record.status };
 }
 
+function buildRecommendationEventDocId(eventType, orderId, courseId, userId) {
+  const safeEventType = String(eventType || "").trim().toUpperCase();
+  const safeOrderId = String(orderId || "").trim();
+  const safeCourseId = String(courseId || "").trim();
+  const safeUserId = String(userId || "").trim();
+  return `${safeEventType}_${safeOrderId}_${safeCourseId}_${safeUserId}`.replace(/[^A-Z0-9_:-]/gi, "_");
+}
+
+function buildRecommendationFeedbackEvent({
+  eventType,
+  orderId,
+  userId,
+  courseId,
+  now,
+  source = "payment_success",
+}) {
+  return {
+    id: buildRecommendationEventDocId(eventType, orderId, courseId, userId),
+    userId: String(userId || "").trim(),
+    courseId: String(courseId || "").trim(),
+    predictionLogId: "",
+    eventType: String(eventType || "").trim().toUpperCase(),
+    source,
+    modelVersion: "",
+    createdAt: now,
+  };
+}
+
 async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
   if (!isMomoSuccess(payload)) {
     return { updated: false, reason: "IPN is not successful" };
@@ -397,12 +425,24 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
       return { updated: false, reason: "Order missing userId" };
     }
 
+    const userSnapshot = await tx.get(db.collection("users").doc(userId));
+    const userData = userSnapshot.data() || {};
+    const studentName = String(userData.fullName || "").trim();
+
     for (const itemDoc of orderItemsSnapshot.docs) {
       const item = itemDoc.data() || {};
       const courseId = String(item.courseId || "").trim();
       if (!courseId) {
         continue;
       }
+
+      const courseRef = db.collection("courses").doc(courseId);
+      const courseSnapshot = await tx.get(courseRef);
+      const courseData = courseSnapshot.data() || {};
+      const instructorId = String(item.instructorId || courseData.instructorId || "").trim();
+      const instructorName = String(item.instructorName || courseData.instructorName || "").trim();
+      const courseTitle = String(item.courseTitle || courseData.title || "").trim();
+      const courseThumbnailUrl = String(item.courseThumbnailUrl || courseData.thumbnailUrl || "").trim();
 
       const enrollmentId = `${userId}_${courseId}`;
       const enrollmentRef = db.collection("enrollments").doc(enrollmentId);
@@ -415,12 +455,77 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
           enrolledAt: now
         });
 
-        tx.update(db.collection("courses").doc(courseId), {
+        tx.update(courseRef, {
           enrollmentCount: admin.firestore.FieldValue.increment(1)
         });
+
+        const enrollEvent = buildRecommendationFeedbackEvent({
+          eventType: "ENROLL",
+          orderId,
+          userId,
+          courseId,
+          now,
+          source: "payment_enrollment"
+        });
+        tx.set(
+          db.collection("recommendationFeedbackEvents").doc(enrollEvent.id),
+          enrollEvent
+        );
       }
 
       tx.delete(db.collection("cartItems").doc(`${userId}_${courseId}`));
+
+      const purchaseEvent = buildRecommendationFeedbackEvent({
+        eventType: "PURCHASE",
+        orderId,
+        userId,
+        courseId,
+        now,
+        source: "payment_success"
+      });
+      tx.set(
+        db.collection("recommendationFeedbackEvents").doc(purchaseEvent.id),
+        purchaseEvent
+      );
+
+      if (instructorId) {
+        const instructorSnapshot = await tx.get(db.collection("instructors").doc(instructorId));
+        const instructorData = instructorSnapshot.data() || {};
+        const bankName = String(instructorData.bankName || "").trim();
+        const bankCode = String(instructorData.bankCode || "").trim();
+        const bankAccountNumber = String(instructorData.bankAccountNumber || "").trim();
+        const bankAccountHolder = String(instructorData.bankAccountHolder || "").trim();
+        const hasBankInfo = Boolean(bankName && bankAccountNumber && bankAccountHolder);
+        const payoutRef = db.collection("instructorPayouts").doc(itemDoc.id);
+        const payoutSnapshot = await tx.get(payoutRef);
+
+        if (!payoutSnapshot.exists) {
+          tx.set(payoutRef, {
+            id: itemDoc.id,
+            orderId,
+            orderItemId: itemDoc.id,
+            courseId,
+            courseTitle,
+            courseThumbnailUrl,
+            studentId: userId,
+            studentName,
+            instructorId,
+            instructorName,
+            grossAmount: Number(item.coursePrice || 0),
+            payoutAmount: Number(item.coursePrice || 0),
+            payoutStatus: "PENDING",
+            orderConfirmedAt: now,
+            paidAt: 0,
+            paidByAdminUid: "",
+            manualTransferReference: "",
+            bankName,
+            bankCode,
+            bankAccountNumber,
+            bankAccountHolder,
+            hasBankInfo
+          });
+        }
+      }
     }
 
     tx.update(orderRef, {

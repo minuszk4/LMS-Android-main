@@ -110,7 +110,13 @@ fun StudentHomeRoute(
         onSeeAllClick = onSeeAllClick,
         onContinueClick = onContinueClick,
         onMyCourseClick = onMyCourseClick,
-        onSuggestedCourseClick = onSuggestedCourseClick,
+        onSuggestedCourseClick = { course ->
+            val userId = user?.uid.orEmpty()
+            if (userId.isNotBlank()) {
+                courseViewModel.onSuggestedCourseClicked(userId, course.id)
+            }
+            onSuggestedCourseClick(course)
+        },
         onInstructorClick = onInstructorClick
     )
 }

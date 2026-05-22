@@ -4,12 +4,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lms2.data.model.Category
 import com.example.lms2.data.model.Course
+import com.example.lms2.data.model.Enrollment
 import com.example.lms2.data.model.InstructorApplicationStatus
+import com.example.lms2.data.model.Progress
 import com.example.lms2.data.model.User
 import com.example.lms2.data.repository.AuthRepository
 import com.example.lms2.data.repository.CategoryRepository
 import com.example.lms2.data.repository.CourseRepository
+import com.example.lms2.data.repository.EnrollmentRepository
+import com.example.lms2.data.repository.ProgressRepository
 import com.example.lms2.util.ResultState
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -28,11 +34,14 @@ data class AdminManagementUiState(
     val isLoadingSummary: Boolean = false,
     val isLoadingUsers: Boolean = false,
     val isLoadingCourses: Boolean = false,
+    val isLoadingLearningData: Boolean = false,
     val isLoadingCategories: Boolean = false,
     val isProcessing: Boolean = false,
     val summary: AdminDashboardSummary = AdminDashboardSummary(),
     val users: List<User> = emptyList(),
     val courses: List<Course> = emptyList(),
+    val enrollments: List<Enrollment> = emptyList(),
+    val progresses: List<Progress> = emptyList(),
     val categories: List<Category> = emptyList()
 )
 
@@ -44,7 +53,9 @@ sealed class AdminManagementEvent {
 class AdminManagementViewModel(
     private val authRepository: AuthRepository = AuthRepository(),
     private val courseRepository: CourseRepository = CourseRepository(),
-    private val categoryRepository: CategoryRepository = CategoryRepository()
+    private val categoryRepository: CategoryRepository = CategoryRepository(),
+    private val enrollmentRepository: EnrollmentRepository = EnrollmentRepository(),
+    private val progressRepository: ProgressRepository = ProgressRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AdminManagementUiState())
@@ -121,6 +132,36 @@ class AdminManagementViewModel(
 
                 ResultState.Loading -> Unit
             }
+        }
+    }
+
+    fun loadLearningData() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingLearningData = true)
+
+            val (enrollmentsResult, progressesResult) = coroutineScope {
+                val enrollmentsDeferred = async { enrollmentRepository.getAllEnrollments() }
+                val progressesDeferred = async { progressRepository.getAllProgress() }
+                enrollmentsDeferred.await() to progressesDeferred.await()
+            }
+
+            if (enrollmentsResult is ResultState.Error) {
+                _uiState.value = _uiState.value.copy(isLoadingLearningData = false)
+                _event.emit(AdminManagementEvent.ShowError(enrollmentsResult.message))
+                return@launch
+            }
+
+            if (progressesResult is ResultState.Error) {
+                _uiState.value = _uiState.value.copy(isLoadingLearningData = false)
+                _event.emit(AdminManagementEvent.ShowError(progressesResult.message))
+                return@launch
+            }
+
+            _uiState.value = _uiState.value.copy(
+                isLoadingLearningData = false,
+                enrollments = (enrollmentsResult as? ResultState.Success)?.data.orEmpty(),
+                progresses = (progressesResult as? ResultState.Success)?.data.orEmpty()
+            )
         }
     }
 

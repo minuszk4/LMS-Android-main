@@ -148,7 +148,7 @@ fun PaymentScreen(
                     totalAmount = uiState.totalAmount,
                     isSubmitting = uiState.isSubmitting,
                     onCheckout = onSubmitCheckout,
-                    checkoutLabel = "Thanh toán qua MoMo"
+                    checkoutLabel = "Thanh toán vào ví admin"
                 )
             }
         }
@@ -393,9 +393,10 @@ private fun PaymentDetailsSection(
     pendingOrder: Order?
 ) {
     val detailRows = listOf(
-        "Đơn vị hỗ trợ" to "Momo / ZaloPay / ShopeePay",
+        "Tài khoản nhận" to (pendingOrder?.bankAccountHolder?.ifBlank { "Admin LMS" } ?: "Admin LMS"),
+        "Kênh thanh toán" to "Ví MoMo của admin",
         "Phí giao dịch" to "Miễn phí",
-        "Thời gian xác nhận" to "Ngay lập tức"
+        "Thời gian xác nhận" to "Tự động sau khi MoMo báo thành công"
     )
 
     Card(
@@ -496,7 +497,7 @@ private fun PendingTransferSection(
                 )
                 Text(
                     text = if (order.paymentMethod == PaymentMethod.E_WALLET) {
-                        "Đang chờ xác nhận thanh toán MoMo"
+                        "Đang chờ xác nhận thanh toán vào ví admin"
                     } else {
                         "Đang chờ xác nhận chuyển khoản"
                     },
@@ -528,9 +529,17 @@ private fun PendingTransferSection(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium
             )
+            if (order.bankAccountHolder.isNotBlank()) {
+                Text(
+                    text = "Người nhận: ${order.bankAccountHolder}",
+                    color = TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
             Text(
                 text = if (order.paymentMethod == PaymentMethod.E_WALLET) {
-                    "Sau khi bạn thanh toán trong ứng dụng MoMo, hệ thống sẽ tự xác nhận giao dịch."
+                    "Sau khi bạn thanh toán vào ví MoMo của admin, hệ thống sẽ tự xác nhận giao dịch và kích hoạt khóa học."
                 } else {
                     "Hệ thống sẽ tự xác nhận khi nhận đúng giao dịch. Nếu đã chuyển khoản, bạn có thể bấm kiểm tra ngay."
                 },
@@ -545,7 +554,7 @@ private fun PendingTransferSection(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(text = "Mở ứng dụng MoMo", color = Color.White)
+                    Text(text = "Mở MoMo để thanh toán", color = Color.White)
                 }
             }
 

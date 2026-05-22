@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.ChecklistRtl
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Refresh
@@ -60,7 +61,8 @@ fun AdminHomeRoute(
     onOpenApprovals: () -> Unit,
     onOpenUsers: () -> Unit,
     onOpenCourses: () -> Unit,
-    onOpenCategories: () -> Unit
+    onOpenCategories: () -> Unit,
+    onOpenPayouts: () -> Unit
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
     val snackbarHostState = remember { SnackbarHostState() }
@@ -90,7 +92,8 @@ fun AdminHomeRoute(
         onOpenApprovals = onOpenApprovals,
         onOpenUsers = onOpenUsers,
         onOpenCourses = onOpenCourses,
-        onOpenCategories = onOpenCategories
+        onOpenCategories = onOpenCategories,
+        onOpenPayouts = onOpenPayouts
     )
 }
 
@@ -108,7 +111,8 @@ private fun AdminHomeScreen(
     onOpenApprovals: () -> Unit,
     onOpenUsers: () -> Unit,
     onOpenCourses: () -> Unit,
-    onOpenCategories: () -> Unit
+    onOpenCategories: () -> Unit,
+    onOpenPayouts: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -184,6 +188,21 @@ private fun AdminHomeScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SummaryCard(title = "Tổng khóa học", value = totalCourses.toString(), subtitle = "$unpublishedCourses chưa xuất bản", modifier = Modifier.weight(1f))
                     SummaryCard(title = "Mục tiêu", value = "Ổn định", subtitle = "Vận hành nền tảng", modifier = Modifier.weight(1f))
+                }
+            }
+
+            item {
+                FilledTonalButton(
+                    onClick = onOpenPayouts,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFFEEF2FF),
+                        contentColor = Primary
+                    )
+                ) {
+                    Icon(Icons.Default.AttachMoney, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Quản lý chuyển tiền giảng viên", fontWeight = FontWeight.SemiBold)
                 }
             }
 

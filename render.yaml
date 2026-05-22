@@ -6,3 +6,11 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     plan: free
+  - type: cron
+    name: lms-ml-backend-retrain
+    env: python
+    rootDir: ml-backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python trigger_retrain.py
+    schedule: "0 2 */2 * *"
+    plan: free

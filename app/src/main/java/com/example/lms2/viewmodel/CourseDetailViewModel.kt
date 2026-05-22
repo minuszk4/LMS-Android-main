@@ -10,6 +10,7 @@ import com.example.lms2.data.repository.CurriculumRepository
 import com.example.lms2.data.repository.EnrollmentRepository
 import com.example.lms2.data.repository.AuthRepository
 import com.example.lms2.data.repository.ProgressRepository
+import com.example.lms2.data.repository.RecommendationRepository
 import com.example.lms2.data.repository.ReviewRepository
 import com.example.lms2.util.CourseDetailEvent
 import com.example.lms2.util.CourseDetailUiState
@@ -31,7 +32,8 @@ class CourseDetailViewModel(
     private val categoryRepository: CategoryRepository = CategoryRepository(),
     private val authRepository: AuthRepository = AuthRepository(),
     private val progressRepository: ProgressRepository = ProgressRepository(),
-    private val reviewRepository: ReviewRepository = ReviewRepository()
+    private val reviewRepository: ReviewRepository = ReviewRepository(),
+    private val recommendationRepository: RecommendationRepository = RecommendationRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CourseDetailUiState())
@@ -190,6 +192,14 @@ class CourseDetailViewModel(
                         "Đã thêm khóa học vào giỏ hàng"
                     } else {
                         "Đã xóa khóa học khỏi giỏ hàng"
+                    }
+                    if (isNowInCart) {
+                        recommendationRepository.logRecommendationFeedback(
+                            userId = userId,
+                            courseId = courseId,
+                            eventType = "ADD_TO_CART",
+                            source = "course_detail"
+                        )
                     }
                     _event.emit(CourseDetailEvent.ShowMessage(message))
                 }

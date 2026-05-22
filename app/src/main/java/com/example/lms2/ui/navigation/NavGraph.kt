@@ -33,6 +33,7 @@ import com.example.lms2.ui.screen.admin.AdminCoursesScreen
 import com.example.lms2.ui.screen.admin.AdminCategoriesScreen
 import com.example.lms2.ui.screen.admin.AdminHomeRoute
 import com.example.lms2.ui.screen.admin.AdminInstructorApprovalScreen
+import com.example.lms2.ui.screen.admin.AdminPayoutsRoute
 import com.example.lms2.ui.screen.admin.AdminUsersScreen
 import com.example.lms2.ui.screen.auth.SplashScreen
 import com.example.lms2.ui.screen.instructor.InstructorHomeRoute
@@ -89,6 +90,7 @@ fun AppNavGraph(
     val instructorPersonalInfoViewModel: InstructorPersonalInfoViewModel = viewModel()
     val adminApprovalViewModel: AdminApprovalViewModel = viewModel()
     val adminManagementViewModel: AdminManagementViewModel = viewModel()
+    val adminPayoutViewModel: AdminPayoutViewModel = viewModel()
 
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val user = authUiState.currentUser
@@ -152,10 +154,13 @@ fun AppNavGraph(
                                     onOpenCourses = {
                                         navController.navigate(Routes.ADMIN_COURSES) { launchSingleTop = true }
                                     },
-                                    onOpenCategories = {
-                                        navController.navigate(Routes.ADMIN_CATEGORIES) { launchSingleTop = true }
-                                    }
-                                )
+                                     onOpenCategories = {
+                                         navController.navigate(Routes.ADMIN_CATEGORIES) { launchSingleTop = true }
+                                     },
+                                     onOpenPayouts = {
+                                         navController.navigate(Routes.ADMIN_PAYOUTS) { launchSingleTop = true }
+                                     }
+                                 )
                             }
                         }
                     } else if (user.role == UserRole.INSTRUCTOR) {
@@ -324,6 +329,18 @@ fun AppNavGraph(
                                     popUpTo(0) { inclusive = true }
                                 }
                             }
+                        )
+                    }
+                }
+            }
+
+            composable(Routes.ADMIN_PAYOUTS) {
+                AdminMainScaffold(navController, currentDestination) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        AdminPayoutsRoute(
+                            adminUid = authViewModel.getCurrentUserId(),
+                            viewModel = adminPayoutViewModel,
+                            onBackClick = { navController.popBackStack() }
                         )
                     }
                 }

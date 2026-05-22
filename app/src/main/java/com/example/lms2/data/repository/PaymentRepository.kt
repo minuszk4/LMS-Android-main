@@ -60,11 +60,14 @@ class PaymentRepository {
         .callTimeout(45, TimeUnit.SECONDS)
         .build()
     private val momoFunctionBaseUrl = BuildConfig.MOMO_FUNCTION_BASE_URL.trim().trimEnd('/')
+    private val adminUid = BuildConfig.ADMIN_UID.trim()
 
     private data class ResolvedCheckoutItem(
         val courseId: String,
         val instructorId: String,
+        val instructorName: String,
         val courseTitle: String,
+        val courseThumbnailUrl: String,
         val coursePrice: Double,
         val courseRefPath: String,
         val enrollmentCount: Long,
@@ -203,8 +206,10 @@ class PaymentRepository {
                         ResolvedCheckoutItem(
                             courseId = courseId,
                             instructorId = course.instructorId,
+                            instructorName = course.instructorName,
                             // Always charge using latest course snapshot to avoid stale cart prices.
                             courseTitle = course.title,
+                            courseThumbnailUrl = course.thumbnailUrl,
                             coursePrice = course.price,
                             courseRefPath = courseRef.path,
                             enrollmentCount = course.enrollmentCount.toLong(),
@@ -218,7 +223,9 @@ class PaymentRepository {
                         ResolvedCheckoutItem(
                             courseId = courseId,
                             instructorId = course.instructorId,
+                            instructorName = course.instructorName,
                             courseTitle = course.title,
+                            courseThumbnailUrl = course.thumbnailUrl,
                             coursePrice = course.price,
                             courseRefPath = courseRef.path,
                             enrollmentCount = course.enrollmentCount.toLong(),
@@ -240,24 +247,24 @@ class PaymentRepository {
 
                 val initialStatus = PaymentStatus.PENDING
 
-                val order = Order(
-                    id = orderId,
-                    userId = userId,
-                    itemCount = resolvedItems.size,
-                    paymentMethod = paymentMethod,
+                    val order = Order(
+                        id = orderId,
+                        userId = userId,
+                        itemCount = resolvedItems.size,
+                        paymentMethod = paymentMethod,
                     paymentStatus = initialStatus,
-                    totalAmount = totalAmount,
-                    createdAt = now,
-                    payeeInstructorId = "",
-                    bankName = "",
-                    bankCode = "",
-                    bankAccountNumber = "",
-                    bankAccountHolder = "",
-                    transferContent = transferContent,
-                    transferContentNormalized = transferContentNormalized,
-                    qrCodeUrl = "",
-                    confirmedAt = 0L
-                )
+                        totalAmount = totalAmount,
+                        createdAt = now,
+                        payeeInstructorId = adminUid,
+                        bankName = "MoMo",
+                        bankCode = "MOMO",
+                        bankAccountNumber = "",
+                        bankAccountHolder = "Tài khoản quản trị LMS",
+                        transferContent = transferContent,
+                        transferContentNormalized = transferContentNormalized,
+                        qrCodeUrl = "",
+                        confirmedAt = 0L
+                    )
                 transaction.set(orderRef, order)
 
                 resolvedItems.forEach { item ->
@@ -267,7 +274,10 @@ class PaymentRepository {
                         userId = userId,
                         courseId = item.courseId,
                         courseTitle = item.courseTitle,
+                        courseThumbnailUrl = item.courseThumbnailUrl,
                         coursePrice = item.coursePrice,
+                        instructorId = item.instructorId,
+                        instructorName = item.instructorName,
                         createdAt = now
                     )
                     transaction.set(orderItemsCollection.document(orderItem.id), orderItem)

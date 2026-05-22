@@ -6,8 +6,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isSelf(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isOwnerField(field) {
+      return isSignedIn() && field == request.auth.uid;
     }
 
     function isAdmin() {
@@ -28,118 +28,120 @@ service cloud.firestore {
         get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId == request.auth.uid;
     }
 
-    function isOwnerField(field) {
-      return isSignedIn() && field == request.auth.uid;
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+      allow delete: if false;
     }
 
-    match /users/{userId} {
-      allow read: if isSelf(userId) || isAdmin();
-      allow create: if isSelf(userId);
-      allow update: if isSelf(userId) &&
-        request.resource.data.uid == resource.data.uid &&
-        request.resource.data.role == resource.data.role;
-      allow delete: if false;
+    match /instructors/{instructorId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /courses/{courseId} {
       allow read: if true;
-      allow create: if isAdmin() || (isInstructor() && isOwnerField(request.resource.data.instructorId));
-      allow update, delete: if isAdmin() || (isInstructor() && isOwnerField(resource.data.instructorId));
+      allow create, update, delete: if isAdmin() || (isInstructor() && isOwnerField(resource.data.instructorId));
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /quizzes/{quizId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     match /carts/{cartId} {
-      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
+      allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
       allow delete: if false;
     }
 
     match /cartItems/{cartItemId} {
-      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
-      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
-      allow delete: if isSignedIn() && isOwnerField(resource.data.userId);
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (
+        isOwnerField(request.resource.data.userId) ||
+        isOwnerField(resource.data.userId)
+      );
     }
 
-    // Payment hardening: client can create pending orders but cannot change status/amount.
+    // Payment Phase-1: allow create/read from client, but block client-side status mutation.
     match /orders/{orderId} {
-      allow read: if isSignedIn() && (
-        isOwnerField(resource.data.userId) ||
-        isAdmin() ||
-        (isInstructor() && isOwnerField(resource.data.payeeInstructorId))
-      );
-
-      allow create: if isSignedIn() &&
-        isOwnerField(request.resource.data.userId) &&
-        request.resource.data.paymentStatus == 'PENDING' &&
-        request.resource.data.confirmedAt == 0;
-
-      allow update, delete: if false;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() &&
+        isOwnerField(resource.data.userId) &&
+        request.resource.data.paymentStatus == resource.data.paymentStatus &&
+        request.resource.data.confirmedAt == resource.data.confirmedAt;
+      allow delete: if false;
     }
 
     match /orderItems/{orderItemId} {
-      allow read: if isSignedIn() && (
-        isOwnerField(resource.data.userId) ||
-        isAdmin() ||
-        isCourseInstructor(resource.data.courseId)
-      );
-
-      allow create: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
 
-    // Enrollment must be granted server-side after payment confirmation.
     match /enrollments/{enrollmentId} {
-      allow read: if isSignedIn() && (
-        isOwnerField(resource.data.userId) ||
-        isAdmin() ||
-        isCourseInstructor(resource.data.courseId)
-      );
-      allow create, update, delete: if false;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
-    // Transaction sources are webhook/server-side only.
+    // Sensitive payment records must be server-only.
     match /bankTransactions/{transactionId} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read, write: if false;
     }
 
     match /momoRequests/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /instructorPayouts/{payoutId} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     match /progress/{progressId} {
-      allow read: if isSignedIn() && (
-        isOwnerField(resource.data.userId) ||
-        isAdmin() ||
-        isCourseInstructor(resource.data.courseId)
-      );
-      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
+    }
+
+    match /lessonProgress/{progressId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /quizProgress/{progressId} {
+      allow read, write: if isSignedIn();
     }
 
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create, update, delete: if isSignedIn() && isOwnerField(request.resource.data.userId);
+      allow write: if isSignedIn();
     }
 
     match /notifications/{notificationId} {
-      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
-      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     match /chatSessions/{sessionId} {
-      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
-      allow create, update: if isSignedIn() && isOwnerField(request.resource.data.userId);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     match /chatMessages/{messageId} {
-      allow read: if isSignedIn() && isOwnerField(resource.data.userId);
-      allow create: if isSignedIn() && isOwnerField(request.resource.data.userId);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
+    // Unknown collections are denied by default.
     match /{document=**} {
       allow read, write: if false;
     }

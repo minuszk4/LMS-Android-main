@@ -6,7 +6,10 @@ data class OrderItem(
     val userId: String = "",
     val courseId: String = "",
     val courseTitle: String = "",
+    val courseThumbnailUrl: String = "",
     val coursePrice: Double = 0.0,
+    val instructorId: String = "",
+    val instructorName: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 

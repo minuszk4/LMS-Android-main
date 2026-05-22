@@ -5,6 +5,7 @@ import com.example.lms2.data.model.Progress
 import com.example.lms2.data.model.QuizProgress
 import com.example.lms2.util.ResultState
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -16,10 +17,6 @@ class ProgressRepository {
     private val progressCollection = firestore.collection("progress")
     private val lessonProgressCollection = firestore.collection("lessonProgress")
     private val quizProgressCollection = firestore.collection("quizProgress")
-
-    // ─────────────────────────────────────────
-    // PROGRESS (Course level)
-    // ─────────────────────────────────────────
 
     suspend fun getProgress(userId: String, courseId: String): ResultState<Progress?> {
         return try {
@@ -49,16 +46,13 @@ class ProgressRepository {
                         "lastAccessedAt" to System.currentTimeMillis()
                     ),
                     SetOptions.merge()
-                ).await()
+                )
+                .await()
             ResultState.Success(Unit)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Cập nhật tiến độ thất bại")
         }
     }
-
-    // ─────────────────────────────────────────
-    // LESSON PROGRESS
-    // ─────────────────────────────────────────
 
     suspend fun getLessonProgress(
         userId: String,
@@ -102,19 +96,13 @@ class ProgressRepository {
             firestore.runTransaction { transaction ->
                 val lessonProgressRef = lessonProgressCollection.document("${userId}_${lessonId}")
                 val progressRef = progressCollection.document("${userId}_${courseId}")
-                
-                // 1. Kiểm tra trạng thái bài học hiện tại để tránh cộng dồn sai
+
                 val lessonSnapshot = transaction.get(lessonProgressRef)
                 val alreadyCompleted = lessonSnapshot.getBoolean("isCompleted") ?: false
-                
-                // Nếu trạng thái yêu cầu giống trạng thái hiện tại, không làm gì cả
                 if (alreadyCompleted == isCompleted) return@runTransaction
 
-                // 2. Đọc tiến độ khóa học
                 val progressSnapshot = transaction.get(progressRef)
                 val currentCompleted = progressSnapshot.getLong("completedLessons") ?: 0
-
-                // 3. Tính toán số lượng bài học hoàn thành mới
                 val newCompleted = if (isCompleted) {
                     currentCompleted + 1
                 } else {
@@ -151,10 +139,6 @@ class ProgressRepository {
         }
     }
 
-    // ─────────────────────────────────────────
-    // QUIZ PROGRESS
-    // ─────────────────────────────────────────
-
     suspend fun getQuizProgress(
         userId: String,
         quizId: String
@@ -169,10 +153,6 @@ class ProgressRepository {
             ResultState.Error(e.message ?: "Lấy tiến độ bài kiểm tra thất bại")
         }
     }
-
-    // ─────────────────────────────────────────
-    // LOAD ALL — dùng cho LessonPlayerScreen
-    // ─────────────────────────────────────────
 
     suspend fun loadCourseProgress(
         userId: String,
@@ -214,6 +194,18 @@ class ProgressRepository {
             }
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Tải tiến độ khóa học thất bại")
+        }
+    }
+
+    suspend fun getAllProgress(): ResultState<List<Progress>> {
+        return try {
+            val snapshot = progressCollection
+                .orderBy("lastAccessedAt", Query.Direction.DESCENDING)
+                .get()
+                .await()
+            ResultState.Success(snapshot.toObjects(Progress::class.java))
+        } catch (e: Exception) {
+            ResultState.Error(e.message ?: "Lấy tất cả tiến độ thất bại")
         }
     }
 }

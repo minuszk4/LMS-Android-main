@@ -1,142 +1,238 @@
 import json
-import math
+import pickle
+import time
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, List, Optional
 
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
 
 class RecommendationModel:
     def __init__(self):
-        self.weights = [0.0] * 7
-        self.bias = 0.0
+        self.model = None
+        self.scaler = StandardScaler()
+        self.linear_weights: Optional[np.ndarray] = None
+        self.linear_bias: float = 0.0
         self.feature_names = [
-            "category_affinity",
-            "level_affinity",
-            "instructor_affinity",
-            "rating",
-            "enrollment_count",
-            "lesson_count",
-            "recency_weight"
+            'category_affinity',
+            'level_affinity',
+            'instructor_affinity',
+            'price_affinity',
+            'rating',
+            'review_count',
+            'enrollment_count',
+            'lesson_count',
+            'course_freshness',
+            'popularity_score',
+            'recency_weight'
         ]
-        self.is_trained = False
+    
+    def extract_features(self, user_profile: Dict, course: Dict, user_enrollments: List[str]) -> np.ndarray:
+        """
+        Extract features for a course given a user profile.
+        
+        user_profile: {categoryWeights, levelWeights, instructorWeights}
+        course: {id, categoryId, level, instructorId, rating, enrollmentCount, lessonCount}
+        """
+        category_affinity = float(user_profile.get('categoryWeights', {}).get(course.get('categoryId'), 0.0))
+        level_affinity = float(user_profile.get('levelWeights', {}).get(course.get('level'), 0.0))
+        instructor_affinity = float(user_profile.get('instructorWeights', {}).get(course.get('instructorId'), 0.0))
 
-    def extract_features(self, user_profile: Dict, course: Dict, user_enrollments: List[str]) -> List[float]:
-        """Extract normalized features for a candidate course."""
-        category_affinity = user_profile.get("categoryWeights", {}).get(course.get("categoryId"), 0.0)
-        level_affinity = user_profile.get("levelWeights", {}).get(course.get("level"), 0.0)
-        instructor_affinity = user_profile.get("instructorWeights", {}).get(course.get("instructorId"), 0.0)
+        price_affinity = self._calculate_price_affinity(user_profile, float(course.get('price', 0.0) or 0.0))
+        rating = float(course.get('rating', 0.0) or 0.0) / 5.0
+        review_count = min(int(course.get('reviewCount', 0) or 0), 200) / 200.0
+        enrollment_count = min(int(course.get('enrollmentCount', 0) or 0), 500) / 500.0
+        lesson_count = min(int(course.get('lessonCount', 0) or 0), 200) / 200.0
 
-        rating = float(course.get("rating", 0.0)) / 5.0
-        enrollment_count = min(float(course.get("enrollmentCount", 0)), 100.0) / 100.0
-        lesson_count = min(float(course.get("lessonCount", 0)), 100.0) / 100.0
-        recency_weight = 0.0 if course.get("id") in user_enrollments else 1.0
+        course_freshness = self._calculate_course_freshness(course)
+        popularity_score = (rating * 0.45) + (review_count * 0.20) + (enrollment_count * 0.35)
 
-        return [
-            float(category_affinity),
-            float(level_affinity),
-            float(instructor_affinity),
-            rating,
-            enrollment_count,
-            lesson_count,
-            recency_weight
-        ]
+        recency_weight = 0.0 if course.get('id') in user_enrollments else 1.0
 
+        feature_map = {
+            'category_affinity': category_affinity,
+            'level_affinity': level_affinity,
+            'instructor_affinity': instructor_affinity,
+            'price_affinity': price_affinity,
+            'rating': rating,
+            'review_count': review_count,
+            'enrollment_count': enrollment_count,
+            'lesson_count': lesson_count,
+            'course_freshness': course_freshness,
+            'popularity_score': popularity_score,
+            'recency_weight': recency_weight,
+        }
+
+        return np.asarray([float(feature_map.get(name, 0.0)) for name in self.feature_names], dtype=float)
+    
     def predict_scores(
         self,
         user_profile: Dict,
         courses: List[Dict],
         user_enrollments: List[str]
     ) -> Dict[str, float]:
-        """Predict recommendation scores for each course using the heuristic path."""
-        return self._heuristic_scores(user_profile, courses, user_enrollments)
+        """
+        Predict recommendation scores for courses.
+        
+        Returns: {courseId: score, ...}
+        """
+        if self.model is None and self.linear_weights is None:
+            return self._heuristic_scores(user_profile, courses, user_enrollments)
 
+        scores = {}
+        for course in courses:
+            features = self.extract_features(user_profile, course, user_enrollments)
+            if self.model is not None:
+                features_scaled = self.scaler.transform([features])[0]
+
+                try:
+                    prob = self.model.predict_proba([features_scaled])[0]
+                    score = prob[1] if len(prob) > 1 else 0.5
+                    scores[course.get('id')] = float(score)
+                    continue
+                except Exception:
+                    pass
+
+            if self.linear_weights is not None:
+                score = self._calculate_linear_score(features)
+                scores[course.get('id')] = float(score)
+            else:
+                scores[course.get('id')] = self._calculate_heuristic(user_profile, course)
+        
+        return scores
+    
     def _heuristic_scores(
         self,
         user_profile: Dict,
         courses: List[Dict],
         user_enrollments: List[str]
     ) -> Dict[str, float]:
+        """Fallback heuristic scoring."""
         scores = {}
         for course in courses:
-            scores[course.get("id")] = self._calculate_heuristic(user_profile, course)
+            score = self._calculate_heuristic(user_profile, course)
+            scores[course.get('id')] = score
         return scores
-
+    
     def _calculate_heuristic(self, user_profile: Dict, course: Dict) -> float:
-        category_weight = user_profile.get("categoryWeights", {}).get(course.get("categoryId"), 0.0)
-        level_weight = user_profile.get("levelWeights", {}).get(course.get("level"), 0.0)
-        instructor_weight = user_profile.get("instructorWeights", {}).get(course.get("instructorId"), 0.0)
+        """Calculate heuristic score for a course."""
+        category_weight = user_profile.get('categoryWeights', {}).get(course.get('categoryId'), 0.0)
+        level_weight = user_profile.get('levelWeights', {}).get(course.get('level'), 0.0)
+        instructor_weight = user_profile.get('instructorWeights', {}).get(course.get('instructorId'), 0.0)
+        price_affinity = self._calculate_price_affinity(user_profile, float(course.get('price', 0.0) or 0.0))
+        rating = float(course.get('rating', 0.0) or 0.0) / 5.0
+        review_score = min(int(course.get('reviewCount', 0) or 0), 200) / 200.0
+        popularity_score = rating * 0.45 + (min(course.get('enrollmentCount', 0), 500) / 500.0) * 0.35 + review_score * 0.20
+        freshness_score = self._calculate_course_freshness(course)
 
-        profile_score = (category_weight * 0.45) + (level_weight * 0.30) + (instructor_weight * 0.25)
-        popularity_score = (float(course.get("rating", 0.0)) / 5.0) * 0.5 + (min(float(course.get("enrollmentCount", 0)), 100.0) / 100.0) * 0.5
+        profile_score = (
+            category_weight * 0.33
+            + level_weight * 0.20
+            + instructor_weight * 0.17
+            + price_affinity * 0.15
+            + freshness_score * 0.15
+        )
 
-        return (profile_score * 0.7) + (popularity_score * 0.3)
+        return (profile_score * 0.62) + (popularity_score * 0.38)
+    
+    def train(self, X_train: np.ndarray, y_train: np.ndarray):
+        """Train the recommendation model."""
+        self.train_with_sample_weights(X_train, y_train, sample_weight=None)
 
-    def train(self, X_train: Iterable[Iterable[float]], y_train: Iterable[int]):
-        """Train a simple linear scorer from positive and negative examples."""
-        X_rows = [list(map(float, row)) for row in X_train]
-        y_values = [int(value) for value in y_train]
+    def train_with_sample_weights(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        sample_weight: Optional[np.ndarray]
+    ) -> None:
+        """Train the recommendation model with optional sample weights."""
+        # Normalize features
+        X_scaled = self.scaler.fit_transform(X_train)
 
-        if not X_rows:
-            raise ValueError("Training data is empty")
-
-        if len(set(y_values)) < 2:
-            raise ValueError("Training data must contain at least two classes")
-
-        feature_count = len(X_rows[0])
-        positive_sum = [0.0] * feature_count
-        negative_sum = [0.0] * feature_count
-        positive_count = 0
-        negative_count = 0
-
-        for features, label in zip(X_rows, y_values):
-            if len(features) != feature_count:
-                raise ValueError("Inconsistent feature vector lengths")
-
-            if label == 1:
-                positive_count += 1
-                for index, value in enumerate(features):
-                    positive_sum[index] += value
-            else:
-                negative_count += 1
-                for index, value in enumerate(features):
-                    negative_sum[index] += value
-
-        positive_mean = [value / positive_count if positive_count else 0.0 for value in positive_sum]
-        negative_mean = [value / negative_count if negative_count else 0.0 for value in negative_sum]
-
-        self.weights = [positive_mean[index] - negative_mean[index] for index in range(feature_count)]
-        self.bias = math.log((positive_count + 1.0) / (negative_count + 1.0))
-        self.is_trained = True
-
+        self.model = RandomForestClassifier(
+            n_estimators=100,
+            max_depth=10,
+            random_state=42,
+            n_jobs=-1
+        )
+        fit_kwargs = {}
+        if sample_weight is not None:
+            fit_kwargs["sample_weight"] = sample_weight
+        self.model.fit(X_scaled, y_train, **fit_kwargs)
+        self.linear_weights = None
+        self.linear_bias = 0.0
+    
     def save(self, filepath: str):
-        """Save model weights to JSON."""
-        payload = {
-            "weights": self.weights,
-            "bias": self.bias,
-            "feature_names": self.feature_names
-        }
+        """Save model to file."""
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as file:
-            json.dump(payload, file, ensure_ascii=False, indent=2)
-
+        path.write_bytes(self.dump_bytes())
+    
     def load(self, filepath: str):
-        """Load model weights from JSON."""
+        """Load model from file."""
         path = Path(filepath)
-        with path.open("r", encoding="utf-8") as file:
-            data = json.load(file)
+        if path.suffix.lower() == ".json":
+            self._load_legacy_json(path.read_text(encoding="utf-8"))
+            return
+        self.load_bytes(path.read_bytes())
 
-        self.weights = [float(value) for value in data.get("weights", [])]
-        self.bias = float(data.get("bias", 0.0))
-        self.feature_names = list(data.get("feature_names", self.feature_names))
-        self.is_trained = len(self.weights) == len(self.feature_names)
+    def dump_bytes(self) -> bytes:
+        """Serialize model state to bytes."""
+        state = {
+            'model': self.model,
+            'scaler': self.scaler,
+            'feature_names': self.feature_names,
+            'linear_weights': self.linear_weights,
+            'linear_bias': self.linear_bias
+        }
+        return pickle.dumps(state)
 
-    def _linear_score(self, features: List[float]) -> float:
-        return sum(weight * value for weight, value in zip(self.weights, features)) + self.bias
+    def load_bytes(self, payload: bytes) -> None:
+        """Deserialize model state from bytes."""
+        data = pickle.loads(payload)
+        self.model = data.get('model')
+        self.scaler = data.get('scaler', StandardScaler())
+        self.feature_names = data.get('feature_names', self.feature_names)
+        self.linear_weights = data.get('linear_weights')
+        self.linear_bias = float(data.get('linear_bias', 0.0))
 
-    @staticmethod
-    def _sigmoid(value: float) -> float:
-        if value >= 0:
-            z = math.exp(-value)
-            return 1.0 / (1.0 + z)
-        z = math.exp(value)
-        return z / (1.0 + z)
+    @property
+    def is_trained(self) -> bool:
+        return self.model is not None or self.linear_weights is not None
+
+    def _load_legacy_json(self, raw_json: str) -> None:
+        """Load the legacy linear-weight artifact already present in the repo."""
+        payload = json.loads(raw_json)
+        weights = payload.get("weights") or []
+        if len(weights) != len(self.feature_names):
+            raise ValueError("Legacy weight artifact does not match expected feature size")
+        self.model = None
+        self.scaler = StandardScaler()
+        self.linear_weights = np.asarray(weights, dtype=float)
+        self.linear_bias = float(payload.get("bias", 0.0))
+        self.feature_names = payload.get("feature_names", self.feature_names)
+
+    def _calculate_linear_score(self, features: np.ndarray) -> float:
+        logits = float(np.dot(features, self.linear_weights) + self.linear_bias)
+        return 1.0 / (1.0 + np.exp(-np.clip(logits, -20.0, 20.0)))
+
+    def _calculate_price_affinity(self, user_profile: Dict, course_price: float) -> float:
+        stats = user_profile.get('priceStats', {}) or {}
+        if course_price <= 0.0:
+            return 0.55
+        average_price = float(stats.get('averagePrice', 0.0) or 0.0)
+        max_price = float(stats.get('maxPrice', average_price) or average_price or 1.0)
+        min_price = float(stats.get('minPrice', average_price) or average_price or 0.0)
+        if average_price <= 0.0:
+            return 0.5
+
+        price_span = max(max_price - min_price, average_price * 0.5, 1.0)
+        normalized_gap = min(abs(course_price - average_price) / price_span, 1.0)
+        return 1.0 - normalized_gap
+
+    def _calculate_course_freshness(self, course: Dict) -> float:
+        now_ms = int(time.time() * 1000)
+        created_at = int(course.get('createdAt', 0) or 0)
+        age_days = ((now_ms - created_at) / (24 * 60 * 60 * 1000.0)) if created_at > 0 else 365.0
+        return float(np.exp(-max(age_days, 0.0) / 180.0))

@@ -43,4 +43,5 @@ object Routes {
     const val ADMIN_USERS = "admin_users"
     const val ADMIN_COURSES = "admin_courses"
     const val ADMIN_CATEGORIES = "admin_categories"
+    const val ADMIN_PAYOUTS = "admin_payouts"
 }

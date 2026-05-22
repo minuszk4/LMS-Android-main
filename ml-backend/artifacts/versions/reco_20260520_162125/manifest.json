@@ -1,0 +1,60 @@
+{
+  "modelType": "random_forest_classifier",
+  "trainedAt": 1779268885471,
+  "status": "READY",
+  "dataSource": "SEED",
+  "trainingSampleCount": 291,
+  "positiveSampleCount": 103,
+  "negativeSampleCount": 188,
+  "metrics": {
+    "evaluatedUsers": 20,
+    "recallAt5": 0.4,
+    "precisionAt5": 0.07999999999999999,
+    "ndcgAt5": 0.2083247437591728,
+    "recallAt10": 0.85,
+    "precisionAt10": 0.08500000000000002,
+    "ndcgAt10": 0.35763206523106067
+  },
+  "windowDays": 90,
+  "featureNames": [
+    "category_affinity",
+    "level_affinity",
+    "instructor_affinity",
+    "rating",
+    "enrollment_count",
+    "lesson_count",
+    "recency_weight"
+  ],
+  "activationDecision": {
+    "shouldActivate": false,
+    "reason": "Candidate model did not beat the active model thresholds",
+    "currentMetrics": {
+      "evaluatedUsers": 20,
+      "recallAt5": 0.4,
+      "precisionAt5": 0.07999999999999999,
+      "ndcgAt5": 0.2083247437591728,
+      "recallAt10": 0.85,
+      "precisionAt10": 0.08500000000000002,
+      "ndcgAt10": 0.35763206523106067
+    },
+    "candidateMetrics": {
+      "evaluatedUsers": 20,
+      "recallAt5": 0.4,
+      "precisionAt5": 0.07999999999999999,
+      "ndcgAt5": 0.2083247437591728,
+      "recallAt10": 0.85,
+      "precisionAt10": 0.08500000000000002,
+      "ndcgAt10": 0.35763206523106067
+    },
+    "checks": {
+      "ndcgAt10Improved": false,
+      "recallAt10GuardrailPassed": true
+    }
+  },
+  "id": "reco_20260520_162125",
+  "artifactPath": "C:\\Users\\tranv\\Downloads\\LMS-Android-main\\LMS-Android-main\\ml-backend\\artifacts\\versions\\reco_20260520_162125\\recommendation_model.pkl",
+  "artifactFormat": "pickle",
+  "artifactSha256": "a7d32d0d9934cc75dbc766dadbc34f7c2e4b3bf74d0b41b40124c473416707d8",
+  "artifactSizeBytes": 190957,
+  "savedAt": 1779268885489
+}

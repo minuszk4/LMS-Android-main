@@ -1,0 +1,64 @@
+{
+  "modelType": "random_forest_classifier",
+  "trainedAt": 1779271000169,
+  "status": "ACTIVE",
+  "dataSource": "SEED",
+  "trainingSampleCount": 300,
+  "positiveSampleCount": 167,
+  "negativeSampleCount": 133,
+  "metrics": {
+    "evaluatedUsers": 20,
+    "recallAt5": 0.75,
+    "precisionAt5": 0.15000000000000002,
+    "ndcgAt5": 0.5733120839842696,
+    "recallAt10": 1.0,
+    "precisionAt10": 0.10000000000000002,
+    "ndcgAt10": 0.6562525342129312
+  },
+  "windowDays": 90,
+  "featureNames": [
+    "category_affinity",
+    "level_affinity",
+    "instructor_affinity",
+    "price_affinity",
+    "rating",
+    "review_count",
+    "enrollment_count",
+    "lesson_count",
+    "course_freshness",
+    "popularity_score",
+    "recency_weight"
+  ],
+  "activationDecision": {
+    "shouldActivate": true,
+    "reason": "Candidate model beat current ndcg@10 and passed recall@10 guardrail",
+    "currentMetrics": {
+      "evaluatedUsers": 20,
+      "recallAt5": 0.4,
+      "precisionAt5": 0.07999999999999999,
+      "ndcgAt5": 0.2083247437591728,
+      "recallAt10": 0.85,
+      "precisionAt10": 0.08500000000000002,
+      "ndcgAt10": 0.35763206523106067
+    },
+    "candidateMetrics": {
+      "evaluatedUsers": 20,
+      "recallAt5": 0.75,
+      "precisionAt5": 0.15000000000000002,
+      "ndcgAt5": 0.5733120839842696,
+      "recallAt10": 1.0,
+      "precisionAt10": 0.10000000000000002,
+      "ndcgAt10": 0.6562525342129312
+    },
+    "checks": {
+      "ndcgAt10Improved": true,
+      "recallAt10GuardrailPassed": true
+    }
+  },
+  "id": "reco_20260520_165640",
+  "artifactPath": "C:\\Users\\tranv\\Downloads\\LMS-Android-main\\LMS-Android-main\\ml-backend\\artifacts\\versions\\reco_20260520_165640\\recommendation_model.pkl",
+  "artifactFormat": "pickle",
+  "artifactSha256": "6b78d4113adc77a7c0105fc3d29dccb62670945f1de4323eabc76606323eb2bc",
+  "artifactSizeBytes": 238338,
+  "savedAt": 1779271000176
+}

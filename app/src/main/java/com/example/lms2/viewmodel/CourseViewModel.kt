@@ -33,6 +33,7 @@ class CourseViewModel(
 
     private val _event = MutableSharedFlow<CourseEvent>()
     val event = _event.asSharedFlow()
+    private var lastSuggestedImpressionSignature: String? = null
 
     init {
         getCategories()
@@ -132,7 +133,9 @@ class CourseViewModel(
 
             when (val result = recommendationRepository.getRecommendedCourses(userId, limit = 5)) {
                 is ResultState.Success -> {
-                    _uiState.update { it.copy(isLoading = false, suggestedCourses = result.data.take(5)) }
+                    val courses = result.data.take(5)
+                    _uiState.update { it.copy(isLoading = false, suggestedCourses = courses) }
+                    logSuggestedImpressionsIfNeeded(userId, courses)
                 }
                 is ResultState.Error -> {
                     // Fallback to published courses if recommendation fails.
@@ -140,6 +143,7 @@ class CourseViewModel(
                         is ResultState.Success -> {
                             val courses = fallbackResult.data.take(5)
                             _uiState.update { it.copy(isLoading = false, suggestedCourses = courses) }
+                            logSuggestedImpressionsIfNeeded(userId, courses)
                         }
                         is ResultState.Error -> {
                             _uiState.update { it.copy(isLoading = false) }
@@ -154,6 +158,37 @@ class CourseViewModel(
                     _uiState.update { it.copy(isLoading = false) }
                 }
             }
+        }
+    }
+
+    fun onSuggestedCourseClicked(userId: String, courseId: String) {
+        if (userId.isBlank() || courseId.isBlank()) return
+        viewModelScope.launch {
+            recommendationRepository.logRecommendationFeedback(
+                userId = userId,
+                courseId = courseId,
+                eventType = "CLICK",
+                source = "home_recommendation"
+            )
+        }
+    }
+
+    private fun logSuggestedImpressionsIfNeeded(userId: String, courses: List<Course>) {
+        if (userId.isBlank() || courses.isEmpty()) return
+        val signature = buildString {
+            append(userId)
+            append("|")
+            append(courses.joinToString(",") { it.id })
+        }
+        if (lastSuggestedImpressionSignature == signature) return
+        lastSuggestedImpressionSignature = signature
+
+        viewModelScope.launch {
+            recommendationRepository.logRecommendationImpressions(
+                userId = userId,
+                courseIds = courses.map { it.id },
+                source = "home_recommendation"
+            )
         }
     }
 
