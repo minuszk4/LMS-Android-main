@@ -428,6 +428,7 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
     const userSnapshot = await tx.get(db.collection("users").doc(userId));
     const userData = userSnapshot.data() || {};
     const studentName = String(userData.fullName || "").trim();
+    const itemContexts = [];
 
     for (const itemDoc of orderItemsSnapshot.docs) {
       const item = itemDoc.data() || {};
@@ -447,7 +448,49 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
       const enrollmentId = `${userId}_${courseId}`;
       const enrollmentRef = db.collection("enrollments").doc(enrollmentId);
       const enrollmentSnapshot = await tx.get(enrollmentRef);
-      if (!enrollmentSnapshot.exists) {
+      let instructorData = {};
+      let payoutSnapshot = null;
+      if (instructorId) {
+        const instructorSnapshot = await tx.get(db.collection("instructors").doc(instructorId));
+        instructorData = instructorSnapshot.data() || {};
+        payoutSnapshot = await tx.get(db.collection("instructorPayouts").doc(itemDoc.id));
+      }
+
+      itemContexts.push({
+        itemDoc,
+        item,
+        courseId,
+        courseRef,
+        enrollmentId,
+        enrollmentRef,
+        enrollmentExists: enrollmentSnapshot.exists,
+        instructorId,
+        instructorName,
+        courseTitle,
+        courseThumbnailUrl,
+        instructorData,
+        payoutExists: payoutSnapshot ? payoutSnapshot.exists : false
+      });
+    }
+
+    for (const itemContext of itemContexts) {
+      const {
+        itemDoc,
+        item,
+        courseId,
+        courseRef,
+        enrollmentId,
+        enrollmentRef,
+        enrollmentExists,
+        instructorId,
+        instructorName,
+        courseTitle,
+        courseThumbnailUrl,
+        instructorData,
+        payoutExists
+      } = itemContext;
+
+      if (!enrollmentExists) {
         tx.set(enrollmentRef, {
           id: enrollmentId,
           userId,
@@ -488,43 +531,37 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
         purchaseEvent
       );
 
-      if (instructorId) {
-        const instructorSnapshot = await tx.get(db.collection("instructors").doc(instructorId));
-        const instructorData = instructorSnapshot.data() || {};
+      if (instructorId && !payoutExists) {
         const bankName = String(instructorData.bankName || "").trim();
         const bankCode = String(instructorData.bankCode || "").trim();
         const bankAccountNumber = String(instructorData.bankAccountNumber || "").trim();
         const bankAccountHolder = String(instructorData.bankAccountHolder || "").trim();
         const hasBankInfo = Boolean(bankName && bankAccountNumber && bankAccountHolder);
-        const payoutRef = db.collection("instructorPayouts").doc(itemDoc.id);
-        const payoutSnapshot = await tx.get(payoutRef);
 
-        if (!payoutSnapshot.exists) {
-          tx.set(payoutRef, {
-            id: itemDoc.id,
-            orderId,
-            orderItemId: itemDoc.id,
-            courseId,
-            courseTitle,
-            courseThumbnailUrl,
-            studentId: userId,
-            studentName,
-            instructorId,
-            instructorName,
-            grossAmount: Number(item.coursePrice || 0),
-            payoutAmount: Number(item.coursePrice || 0),
-            payoutStatus: "PENDING",
-            orderConfirmedAt: now,
-            paidAt: 0,
-            paidByAdminUid: "",
-            manualTransferReference: "",
-            bankName,
-            bankCode,
-            bankAccountNumber,
-            bankAccountHolder,
-            hasBankInfo
-          });
-        }
+        tx.set(db.collection("instructorPayouts").doc(itemDoc.id), {
+          id: itemDoc.id,
+          orderId,
+          orderItemId: itemDoc.id,
+          courseId,
+          courseTitle,
+          courseThumbnailUrl,
+          studentId: userId,
+          studentName,
+          instructorId,
+          instructorName,
+          grossAmount: Number(item.coursePrice || 0),
+          payoutAmount: Number(item.coursePrice || 0),
+          payoutStatus: "PENDING",
+          orderConfirmedAt: now,
+          paidAt: 0,
+          paidByAdminUid: "",
+          manualTransferReference: "",
+          bankName,
+          bankCode,
+          bankAccountNumber,
+          bankAccountHolder,
+          hasBankInfo
+        });
       }
     }
 
