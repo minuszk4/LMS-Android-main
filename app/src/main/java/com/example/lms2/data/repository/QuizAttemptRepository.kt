@@ -6,6 +6,12 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository QuizAttemptRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class QuizAttemptRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -15,6 +21,11 @@ class QuizAttemptRepository {
     // ─────────────────────────────────────────
     // SUBMIT QUIZ ATTEMPT
     // ─────────────────────────────────────────
+
+    /**
+     * Gửi dữ liệu biểu mẫu hoặc yêu cầu nghiệp vụ để hệ thống tiếp nhận.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun submitQuizAttempt(
         userId: String,

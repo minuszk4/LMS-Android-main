@@ -1,3 +1,5 @@
+"""Lop Flask phuc vu endpoint recommendation va model-ops cho LMS."""
+
 import os
 import time
 from typing import Dict, Optional
@@ -24,6 +26,8 @@ CORS(app)
 
 
 class RuntimeDataCache:
+    """Cache du lieu runtime de moi request khong phai doc Firestore truc tiep."""
+
     def __init__(self):
         self.payload: Optional[dict] = None
         self.source_name: str = "UNINITIALIZED"
@@ -39,6 +43,7 @@ class RuntimeDataCache:
         return str(os.getenv("RECOMMENDATION_DATA_SOURCE", "auto")).strip().lower()
 
     def get(self, force_refresh: bool = False) -> dict:
+        """Tra ve du lieu cache va refresh khi het han hoac bi ep refresh."""
         now_ms = int(time.time() * 1000)
         cache_age_ms = now_ms - self.loaded_at_ms
         should_refresh = (
@@ -79,6 +84,7 @@ model_state: Dict[str, object] = {
 
 
 def _parse_bool(value, default: bool = False) -> bool:
+    """Phan tich cac gia tri true/false linh hoat tu JSON hoac env."""
     if value is None:
         return default
     if isinstance(value, bool):
@@ -87,10 +93,12 @@ def _parse_bool(value, default: bool = False) -> bool:
 
 
 def _admin_token() -> str:
+    """Doc admin token noi bo dung cho cac endpoint quan ly model."""
     return str(os.getenv("MODEL_ADMIN_TOKEN", "")).strip()
 
 
 def _request_admin_token() -> str:
+    """Lay admin token tu cac header duoc ho tro."""
     return str(
         request.headers.get("X-Model-Admin-Token")
         or request.headers.get("X-Admin-Token")
@@ -99,6 +107,7 @@ def _request_admin_token() -> str:
 
 
 def _authorize_admin_request():
+    """Bao ve cac endpoint quan ly model khoi caller cong khai."""
     expected = _admin_token()
     if not expected:
         return False, jsonify({"error": "MODEL_ADMIN_TOKEN is not configured"}), 503
@@ -108,6 +117,7 @@ def _authorize_admin_request():
 
 
 def _load_active_model() -> bool:
+    """Nap artifact active hien tai vao model instance trong bo nho."""
     bundle = registry.get_active_model_bundle()
     if not bundle:
         model_state.update({
@@ -147,6 +157,7 @@ def _load_active_model() -> bool:
 
 
 def _build_candidate_courses(runtime_data: dict, candidate_course_ids: list, category_id: Optional[str]) -> list:
+    """Bien danh sach candidate ID trong request thanh payload course that."""
     course_by_id = build_course_index(runtime_data)
     courses = []
     for course_id in candidate_course_ids:
@@ -160,6 +171,7 @@ def _build_candidate_courses(runtime_data: dict, candidate_course_ids: list, cat
 
 
 def _build_runtime_user_profile(runtime_data: dict, user_id: str) -> tuple[dict, list[str]]:
+    """Xay dung profile hoc vien va lich su course positive cho suy luan."""
     course_by_id = build_course_index(runtime_data)
     interactions_by_user = build_positive_interactions(runtime_data, course_by_id)
     progress_by_user = build_progress_by_user(runtime_data)
@@ -174,6 +186,7 @@ def _build_runtime_user_profile(runtime_data: dict, user_id: str) -> tuple[dict,
 
 
 def _log_prediction(payload: Dict) -> None:
+    """Ghi log prediction theo kieu best-effort, khong lam hong luong API."""
     try:
         registry.log_prediction(payload)
     except Exception:
@@ -188,6 +201,7 @@ def _build_heuristic_fallback_response(
     source: str,
     request_started_at: int,
 ) -> Dict:
+    """Tra ve response recommendation ngay ca khi model chinh gap loi."""
     runtime_data = runtime_cache.get(force_refresh=False)
     user_profile, positive_course_ids = _build_runtime_user_profile(runtime_data, user_id)
     fallback_model = RecommendationModel()
@@ -228,6 +242,7 @@ except Exception as exc:
 
 @app.route("/health", methods=["GET"])
 def health_check():
+    """Health check kem metadata trang thai serving."""
     return jsonify({
         "status": "ok",
         "message": "ML Recommendation Backend is running",
@@ -242,6 +257,7 @@ def health_check():
 
 @app.route("/model/active", methods=["GET"])
 def active_model():
+    """Tra ve manifest model active va runtime state hien tai."""
     bundle = registry.get_active_model_bundle()
     metadata = (bundle or {}).get("metadata") or {}
     response = {
@@ -255,6 +271,7 @@ def active_model():
 
 @app.route("/model/versions", methods=["GET"])
 def list_model_versions():
+    """Liet ke cac version model gan day cho admin kiem tra."""
     limit = int(request.args.get("limit", 20) or 20)
     return jsonify({
         "versions": registry.list_model_versions(limit=limit),
@@ -263,6 +280,7 @@ def list_model_versions():
 
 @app.route("/metrics/recommendation", methods=["GET"])
 def get_recommendation_metrics():
+    """Tra ve metric cua version model dang active."""
     active_model_metadata = registry.get_active_model_metadata() or {}
     return jsonify({
         "modelVersion": active_model_metadata.get("id") or model_state.get("versionId", ""),
@@ -273,6 +291,7 @@ def get_recommendation_metrics():
 
 @app.route("/model/reload", methods=["POST"])
 def reload_model():
+    """Nap lai artifact model active va co the refresh du lieu runtime."""
     authorized, response, status = _authorize_admin_request()
     if not authorized:
         return response, status
@@ -290,6 +309,7 @@ def reload_model():
 
 @app.route("/jobs/retrain", methods=["POST"])
 def retrain_job():
+    """Kich hoat mot lan retrain dong bo tu admin surface."""
     authorized, response, status = _authorize_admin_request()
     if not authorized:
         return response, status
@@ -343,6 +363,7 @@ def retrain_job():
 
 @app.route("/jobs/retrain/<job_id>", methods=["GET"])
 def get_retrain_job(job_id: str):
+    """Doc trang thai cua mot training job."""
     job = registry.get_training_job(job_id)
     if not job:
         return jsonify({"error": "Training job not found"}), 404
@@ -351,6 +372,7 @@ def get_retrain_job(job_id: str):
 
 @app.route("/recommendation-feedback", methods=["POST"])
 def recommendation_feedback():
+    """Luu feedback event online phat sinh tu app hoac payment flow."""
     payload = request.get_json(silent=True) or {}
     event_type = str(payload.get("eventType") or "").strip().upper()
     user_id = str(payload.get("userId") or "").strip()
@@ -376,6 +398,7 @@ def recommendation_feedback():
 
 @app.route("/recommendations", methods=["POST"])
 def get_recommendations():
+    """Endpoint suy luan chinh duoc lop recommendation cua Android goi toi."""
     request_started_at = int(time.time() * 1000)
     data = request.get_json(silent=True) or {}
     user_id = str(data.get("userId") or "").strip()

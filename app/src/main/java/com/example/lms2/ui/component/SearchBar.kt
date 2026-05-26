@@ -17,6 +17,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * Cung cấp composable tái sử dụng SearchBar cho giao diện LMS Android.
+ * Thành phần trong file này được dùng chung ở nhiều màn hình để giữ trải nghiệm hiển thị đồng nhất.
+ * Tách riêng component giúp giảm lặp code và dễ bảo trì hơn khi thay đổi thiết kế.
+ */
+
 @Composable
 fun SearchBar(
     query: String,

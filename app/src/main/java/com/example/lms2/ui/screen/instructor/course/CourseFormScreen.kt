@@ -45,6 +45,12 @@ import com.example.lms2.viewmodel.AuthViewModel
 import com.example.lms2.viewmodel.CourseViewModel
 import kotlinx.coroutines.launch
 
+/**
+ * Màn hình hoặc thành phần CourseFormScreen hỗ trợ luồng làm việc của giảng viên.
+ * File này thường gắn với quản lý khóa học, giáo trình, hồ sơ hoặc thống kê doanh thu và hiệu quả giảng dạy.
+ * Các composable trong đây phối hợp trực tiếp với ViewModel để phản ánh đúng trạng thái nghiệp vụ của giảng viên.
+ */
+
 @Composable
 fun CourseFormScreen(
     instructorId: String,

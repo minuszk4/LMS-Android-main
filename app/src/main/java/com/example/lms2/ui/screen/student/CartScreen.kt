@@ -69,6 +69,12 @@ import kotlinx.coroutines.flow.collectLatest
 import java.text.NumberFormat
 import java.util.Locale
 
+/**
+ * Màn hình hoặc thành phần CartScreen phục vụ trải nghiệm học viên.
+ * File này hiển thị nội dung học tập, tìm kiếm, thanh toán, chatbot hoặc các tương tác chính của người học.
+ * Đây là nhóm file trực tiếp tạo nên luồng sử dụng hằng ngày của người dùng cuối trên ứng dụng Android.
+ */
+
 private val Indigo = Color(0xFF4B5CC4)
 private val SurfaceGray = Color(0xFFF5F6FA)
 private val CardWhite = Color(0xFFFFFFFF)

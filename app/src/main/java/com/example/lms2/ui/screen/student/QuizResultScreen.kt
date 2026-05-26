@@ -50,6 +50,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.lms2.viewmodel.QuizAttemptViewModel
 
+/**
+ * Màn hình hoặc thành phần QuizResultScreen phục vụ trải nghiệm học viên.
+ * File này hiển thị nội dung học tập, tìm kiếm, thanh toán, chatbot hoặc các tương tác chính của người học.
+ * Đây là nhóm file trực tiếp tạo nên luồng sử dụng hằng ngày của người dùng cuối trên ứng dụng Android.
+ */
+
 @Composable
 fun QuizResultRoute(
 	viewModel: QuizAttemptViewModel,

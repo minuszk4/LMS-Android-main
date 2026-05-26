@@ -15,6 +15,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import kotlin.math.max
 
+/**
+ * Triển khai repository CurriculumRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class CurriculumRepository {
     private val firestore = FirebaseFirestore.getInstance()
     private val lessonsCollection = firestore.collection("lessons")
@@ -25,6 +31,11 @@ class CurriculumRepository {
     // ─────────────────────────────────────────
     // LESSON CRUD
     // ─────────────────────────────────────────
+
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun createLesson(lesson: Lesson): ResultState<String> {
         return try {
@@ -55,6 +66,11 @@ class CurriculumRepository {
         }
     }
 
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun updateLesson(lesson: Lesson): ResultState<Unit> {
         return try {
             val updated = lesson.copy(updatedAt = System.currentTimeMillis())
@@ -67,6 +83,11 @@ class CurriculumRepository {
             ResultState.Error(e.message ?: "Cập nhật bài học thất bại")
         }
     }
+
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun deleteLesson(lessonId: String, courseId: String): ResultState<Unit> {
         return try {
@@ -85,6 +106,11 @@ class CurriculumRepository {
     // ─────────────────────────────────────────
     // QUIZ CRUD (Quiz không tính vào lessonCount)
     // ─────────────────────────────────────────
+
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun createQuiz(quiz: Quiz): ResultState<String> {
         return try {
@@ -120,6 +146,11 @@ class CurriculumRepository {
         }
     }
 
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun updateQuiz(quiz: Quiz): ResultState<Unit> {
         return try {
             val updated = quiz.copy(updatedAt = System.currentTimeMillis())
@@ -133,6 +164,11 @@ class CurriculumRepository {
         }
     }
 
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun deleteQuiz(quizId: String): ResultState<Unit> {
         return try {
             quizzesCollection.document(quizId).delete().await()
@@ -141,6 +177,11 @@ class CurriculumRepository {
             ResultState.Error(e.message ?: "Xóa bài kiểm tra thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getCurriculum(courseId: String): ResultState<List<CurriculumItem>> {
         return try {
@@ -170,6 +211,11 @@ class CurriculumRepository {
             ResultState.Error(e.message ?: "Lấy nội dung khóa học thất bại")
         }
     }
+
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun updateOrder(items: List<CurriculumItem>): ResultState<Unit> {
         return try {

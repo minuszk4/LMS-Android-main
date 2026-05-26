@@ -15,6 +15,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong CartViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class CartViewModel(
     private val cartRepository: CartRepository = CartRepository()
 ) : ViewModel() {
@@ -24,6 +30,11 @@ class CartViewModel(
 
     private val _event = MutableSharedFlow<CartEvent>()
     val event = _event.asSharedFlow()
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadCart(userId: String) {
         if (userId.isBlank() || _uiState.value.isLoading) return
@@ -72,6 +83,11 @@ class CartViewModel(
         }
     }
 
+    /**
+     * Loại bỏ phần tử tương ứng khỏi tập dữ liệu đang quản lý.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun removeCourseFromCart(userId: String, courseId: String) {
         if (userId.isBlank() || courseId.isBlank()) return
 
@@ -116,6 +132,11 @@ class CartViewModel(
         }
     }
 
+    /**
+     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun toggleCourseSelection(courseId: String) {
         if (courseId.isBlank()) return
 
@@ -129,15 +150,30 @@ class CartViewModel(
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun selectAllCourses() {
         _uiState.update { state ->
             state.copy(selectedCourseIds = state.items.map { it.courseId }.toSet())
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun clearSelection() {
         _uiState.update { it.copy(selectedCourseIds = emptySet()) }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun proceedToPayment() {
         val selectedIds = _uiState.value.selectedCourseIds.toList()
@@ -152,6 +188,11 @@ class CartViewModel(
             _event.emit(CartEvent.NavigateToPayment(selectedIds))
         }
     }
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadMoreItems(userId: String) {
         if (userId.isBlank()) return

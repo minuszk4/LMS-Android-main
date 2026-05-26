@@ -2,6 +2,12 @@ package com.example.lms2.util
 
 import android.content.Context
 
+/**
+ * Cung cấp tiện ích hoặc kiểu hỗ trợ AppSettingsStore cho ứng dụng LMS Android.
+ * File này được dùng lại ở nhiều nơi để tránh lặp logic và chuẩn hóa cách xử lý dữ liệu hoặc trạng thái.
+ * Những helper như thế này giúp mã nguồn gọn hơn và dễ tái sử dụng khi mở rộng tính năng.
+ */
+
 object AppSettingsStore {
     private const val PREF_NAME = "lms_app_settings"
     private const val KEY_PUSH_NOTIFICATION_ENABLED = "push_notification_enabled"

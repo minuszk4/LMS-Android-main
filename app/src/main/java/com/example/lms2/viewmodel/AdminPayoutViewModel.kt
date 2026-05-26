@@ -11,16 +11,30 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong AdminPayoutViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 data class AdminPayoutUiState(
     val isLoading: Boolean = false,
     val isProcessing: Boolean = false,
     val payouts: List<InstructorPayout> = emptyList()
 )
 
+/**
+ * Khai báo AdminPayoutEvent trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
+
 sealed class AdminPayoutEvent {
     data class ShowError(val message: String) : AdminPayoutEvent()
     data class ShowSuccess(val message: String) : AdminPayoutEvent()
 }
+
+/**
+ * Khai báo AdminPayoutViewModel trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 class AdminPayoutViewModel(
     private val payoutRepository: PayoutRepository = PayoutRepository()
@@ -31,6 +45,11 @@ class AdminPayoutViewModel(
 
     private val _event = MutableSharedFlow<AdminPayoutEvent>()
     val event = _event.asSharedFlow()
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadPayouts() {
         viewModelScope.launch {
@@ -53,6 +72,11 @@ class AdminPayoutViewModel(
             }
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun markPayoutGroupAsPaid(
         payoutIds: List<String>,

@@ -25,6 +25,12 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 
+/**
+ * Màn hình hoặc thành phần SplashScreen thuộc luồng xác thực tài khoản.
+ * File này xử lý phần giao diện đăng nhập, đăng ký, quên mật khẩu hoặc kiểm tra phiên làm việc của người dùng.
+ * Đây là điểm đầu quan trọng kết nối người dùng với các luồng nghiệp vụ còn lại của hệ thống.
+ */
+
 @Composable
 fun SplashScreen(
     onProgressComplete: () -> Unit = {}

@@ -6,6 +6,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+/**
+ * Khai báo theme hoặc token giao diện trong Type.
+ * File này chứa màu sắc, typography hoặc cấu hình hiển thị dùng chung cho toàn bộ ứng dụng Compose.
+ * Việc tách riêng lớp theme giúp quản lý diện mạo tổng thể nhất quán và tập trung.
+ */
+
 // Set of Material typography styles to start with
 val Typography = Typography(
     bodyLarge = TextStyle(

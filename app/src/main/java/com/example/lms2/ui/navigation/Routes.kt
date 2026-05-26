@@ -1,5 +1,11 @@
 package com.example.lms2.ui.navigation
 
+/**
+ * Khai báo điều hướng hoặc khung điều hướng trong Routes.
+ * File này tập trung các route, NavHost hoặc scaffold dùng chung để điều phối luồng màn hình của ứng dụng.
+ * Việc mô tả rõ lớp điều hướng giúp đối chiếu tài liệu use case và luồng chuyển màn hình thuận tiện hơn.
+ */
+
 object Routes {
     const val SPLASH = "splash"
     const val LOGIN = "login"

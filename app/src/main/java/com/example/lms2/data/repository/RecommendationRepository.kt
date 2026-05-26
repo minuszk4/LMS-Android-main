@@ -19,6 +19,12 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.math.exp
 
+/**
+ * Triển khai repository RecommendationRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class RecommendationRepository {
 
     private companion object {
@@ -43,6 +49,11 @@ class RecommendationRepository {
 
     private val recommendationBackendUrl: String
         get() = BuildConfig.RECOMMENDATION_API_URL.trim().trimEnd('/')
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getRecommendedCourses(
         userId: String,
@@ -86,6 +97,11 @@ class RecommendationRepository {
             fallbackRecommendedCourses(limit = limit)
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getRecommendedCoursesByCategory(
         userId: String,
@@ -170,6 +186,11 @@ class RecommendationRepository {
         }
     }
 
+    /**
+     * Ghi nhận dữ liệu theo dõi hoặc phản hồi để phục vụ thống kê và tối ưu hệ thống.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun logRecommendationFeedback(
         userId: String,
         courseId: String,
@@ -211,6 +232,11 @@ class RecommendationRepository {
             }
         }
     }
+
+    /**
+     * Ghi nhận dữ liệu theo dõi hoặc phản hồi để phục vụ thống kê và tối ưu hệ thống.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun logRecommendationImpressions(
         userId: String,

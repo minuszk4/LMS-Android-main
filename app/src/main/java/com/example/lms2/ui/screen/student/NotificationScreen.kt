@@ -55,6 +55,12 @@ import com.example.lms2.viewmodel.NotificationViewModel
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
+/**
+ * Màn hình hoặc thành phần NotificationScreen phục vụ trải nghiệm học viên.
+ * File này hiển thị nội dung học tập, tìm kiếm, thanh toán, chatbot hoặc các tương tác chính của người học.
+ * Đây là nhóm file trực tiếp tạo nên luồng sử dụng hằng ngày của người dùng cuối trên ứng dụng Android.
+ */
+
 private val NotiBg = Color(0xFFF8FAFC)
 private val NotiCard = Color.White
 private val NotiBorder = Color(0xFFE2E8F0)

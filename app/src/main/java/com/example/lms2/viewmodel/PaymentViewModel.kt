@@ -25,6 +25,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong PaymentViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class PaymentViewModel(
     private val cartRepository: CartRepository = CartRepository(),
     private val courseRepository: CourseRepository = CourseRepository(),
@@ -37,6 +43,11 @@ class PaymentViewModel(
     private val _event = MutableSharedFlow<PaymentEvent>()
     val event = _event.asSharedFlow()
     private var pollingJob: Job? = null
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun initCheckout(
         userId: String,
@@ -180,9 +191,19 @@ class PaymentViewModel(
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun selectPaymentMethod(method: PaymentMethod) {
         _uiState.update { it.copy(paymentMethod = method) }
     }
+
+    /**
+     * Gửi dữ liệu biểu mẫu hoặc yêu cầu nghiệp vụ để hệ thống tiếp nhận.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun submitCheckout(userId: String) {
         if (userId.isBlank()) return
@@ -270,6 +291,11 @@ class PaymentViewModel(
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun checkPendingPaymentNow() {
         val pendingOrderId = _uiState.value.pendingOrder?.id.orEmpty()
         if (pendingOrderId.isBlank()) return
@@ -342,6 +368,11 @@ class PaymentViewModel(
             _uiState.update { it.copy(isCheckingPaymentStatus = false) }
         }
     }
+
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     override fun onCleared() {
         pollingJob?.cancel()

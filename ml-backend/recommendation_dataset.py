@@ -5,6 +5,7 @@ from typing import DefaultDict, Dict, List
 
 
 def build_course_index(data: dict) -> Dict[str, dict]:
+    """Tra ve map cac course da publish theo course ID de tra cuu nhanh."""
     return {
         course.get("id"): course
         for course in data.get("courses", [])
@@ -13,6 +14,7 @@ def build_course_index(data: dict) -> Dict[str, dict]:
 
 
 def build_progress_by_user(data: dict) -> Dict[str, List[dict]]:
+    """Nhom cac ban ghi progress theo user ID."""
     progress_by_user: DefaultDict[str, List[dict]] = defaultdict(list)
     for progress in data.get("progress", []):
         user_id = progress.get("userId")
@@ -23,6 +25,11 @@ def build_progress_by_user(data: dict) -> Dict[str, List[dict]]:
 
 
 def build_positive_interactions(data: dict, course_by_id: Dict[str, dict]) -> Dict[str, Dict[str, float]]:
+    """Quy doi nhieu nguon hanh vi hoc vien thanh tin hieu positive co trong so.
+
+    Dau ra cua ham nay duoc dung lai cho ca huan luyen offline va xay dung
+    user profile luc runtime, giup thong nhat logic scoring toan bo stack.
+    """
     interactions: DefaultDict[str, Dict[str, float]] = defaultdict(dict)
 
     for enrollment in data.get("enrollments", []):
@@ -88,6 +95,7 @@ def build_positive_interactions(data: dict, course_by_id: Dict[str, dict]) -> Di
 
 
 def list_student_ids(data: dict, interactions: Dict[str, Dict[str, float]]) -> List[str]:
+    """Lay danh sach hoc vien hop le de train hoac danh gia."""
     student_ids = [
         user.get("uid")
         for user in data.get("users", [])
@@ -104,6 +112,7 @@ def build_user_profile(
     course_by_id: Dict[str, dict],
     progress_records: List[dict]
 ) -> dict:
+    """Xay dung profile so thich gon nhe tu lich su khoa hoc positive."""
     if not positive_course_ids:
         return {
             "categoryWeights": {},

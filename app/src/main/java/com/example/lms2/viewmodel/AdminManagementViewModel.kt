@@ -22,6 +22,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong AdminManagementViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 data class AdminDashboardSummary(
     val totalUsers: Int = 0,
     val activeUsers: Int = 0,
@@ -29,6 +35,10 @@ data class AdminDashboardSummary(
     val totalCourses: Int = 0,
     val unpublishedCourses: Int = 0
 )
+
+/**
+ * Khai báo AdminManagementUiState trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 data class AdminManagementUiState(
     val isLoadingSummary: Boolean = false,
@@ -45,10 +55,18 @@ data class AdminManagementUiState(
     val categories: List<Category> = emptyList()
 )
 
+/**
+ * Khai báo AdminManagementEvent trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
+
 sealed class AdminManagementEvent {
     data class ShowError(val message: String) : AdminManagementEvent()
     data class ShowSuccess(val message: String) : AdminManagementEvent()
 }
+
+/**
+ * Khai báo AdminManagementViewModel trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 class AdminManagementViewModel(
     private val authRepository: AuthRepository = AuthRepository(),
@@ -63,6 +81,11 @@ class AdminManagementViewModel(
 
     private val _event = MutableSharedFlow<AdminManagementEvent>()
     val event = _event.asSharedFlow()
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadSummary() {
         viewModelScope.launch {
@@ -99,6 +122,11 @@ class AdminManagementViewModel(
         }
     }
 
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun loadUsers() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingUsers = true)
@@ -117,6 +145,11 @@ class AdminManagementViewModel(
         }
     }
 
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun loadCourses() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingCourses = true)
@@ -134,6 +167,11 @@ class AdminManagementViewModel(
             }
         }
     }
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadLearningData() {
         viewModelScope.launch {
@@ -165,6 +203,11 @@ class AdminManagementViewModel(
         }
     }
 
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun loadCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingCategories = true)
@@ -186,6 +229,11 @@ class AdminManagementViewModel(
         }
     }
 
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun createCategory(name: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessing = true)
@@ -205,6 +253,11 @@ class AdminManagementViewModel(
         }
     }
 
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessing = true)
@@ -223,6 +276,11 @@ class AdminManagementViewModel(
             _uiState.value = _uiState.value.copy(isProcessing = false)
         }
     }
+
+    /**
+     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun toggleUserActive(user: User) {
         viewModelScope.launch {
@@ -249,6 +307,11 @@ class AdminManagementViewModel(
         }
     }
 
+    /**
+     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun toggleCoursePublished(course: Course) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessing = true)
@@ -273,6 +336,11 @@ class AdminManagementViewModel(
             _uiState.value = _uiState.value.copy(isProcessing = false)
         }
     }
+
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun createInstructorAccount(
         adminUid: String,

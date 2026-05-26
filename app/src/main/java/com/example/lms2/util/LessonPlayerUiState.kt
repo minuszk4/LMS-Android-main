@@ -6,6 +6,12 @@ import com.example.lms2.data.model.LessonProgress
 import com.example.lms2.data.model.Progress
 import com.example.lms2.data.model.QuizProgress
 
+/**
+ * Mô tả trạng thái giao diện của luồng LessonPlayer.
+ * Đối tượng này gom dữ liệu hiển thị, cờ tải, lỗi kiểm tra và các trạng thái tạm mà Compose cần quan sát.
+ * Việc gom toàn bộ state vào một nơi giúp màn hình render nhất quán và dễ kiểm thử hơn.
+ */
+
 data class LessonPlayerUiState(
     val isLoading: Boolean = false,
     val course: Course? = null,

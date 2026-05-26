@@ -17,6 +17,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import kotlin.math.roundToInt
 
+/**
+ * Triển khai repository MyLearningRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class MyLearningRepository {
 
 	private val firestore = FirebaseFirestore.getInstance()
@@ -26,6 +32,11 @@ class MyLearningRepository {
 	private val progressRepository = ProgressRepository()
 	private val categoryRepository = CategoryRepository()
 	private val curriculumRepository = CurriculumRepository()
+
+	/**
+	 * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+	 * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+	 */
 
 	suspend fun getMyLearningPaged(
 		userId: String,
@@ -97,6 +108,11 @@ class MyLearningRepository {
 			ResultState.Error(e.message ?: "Tải danh sách khóa học của bạn thất bại")
 		}
 	}
+
+	/**
+	 * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+	 * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+	 */
 
 	suspend fun getMyLearning(userId: String): ResultState<MyLearningData> {
 		return try {

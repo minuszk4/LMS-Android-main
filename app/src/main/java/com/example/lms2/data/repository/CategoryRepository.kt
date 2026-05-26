@@ -9,6 +9,12 @@ import com.example.lms2.util.ResultState
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository CategoryRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class CategoryRepository {
     companion object {
         private const val CACHE_KEY_ALL = "categories:all"
@@ -16,6 +22,11 @@ class CategoryRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
     private val categoriesCollection = firestore.collection("categories")
+
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun createCategory(name: String): ResultState<Category> {
         return try {
@@ -49,6 +60,11 @@ class CategoryRepository {
         }
     }
 
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun deleteCategory(categoryId: String): ResultState<Unit> {
         return try {
             if (categoryId.isBlank()) {
@@ -63,6 +79,11 @@ class CategoryRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getCategories(forceRefresh: Boolean = false): ResultState<List<Category>> {
         return try {
             var categories = getAllCategoriesCached(useCache = true, refresh = forceRefresh)
@@ -75,6 +96,11 @@ class CategoryRepository {
             ResultState.Error(e.message ?: "Lỗi khi lấy danh mục")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getCategoriesPage(pageRequest: PageRequest = PageRequest()): ResultState<PageResult<Category>> {
         return try {

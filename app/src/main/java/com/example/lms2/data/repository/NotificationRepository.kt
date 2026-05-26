@@ -12,6 +12,12 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository NotificationRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class NotificationRepository {
 
     data class NotificationTemplate(
@@ -23,6 +29,11 @@ class NotificationRepository {
     private val notificationsCollection = firestore.collection("notifications")
     private val enrollmentsCollection = firestore.collection("enrollments")
     private val notificationCachePrefix = "notifications:user"
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getNotifications(userId: String): ResultState<List<NotificationItem>> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
@@ -55,6 +66,11 @@ class NotificationRepository {
             ResultState.Error(e.message ?: "Tải thông báo thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getNotificationsPage(
         userId: String,
@@ -118,6 +134,11 @@ class NotificationRepository {
         }
     }
 
+    /**
+     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun addNotification(notification: NotificationItem): ResultState<Unit> {
         if (notification.userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
         if (notification.title.isBlank()) return ResultState.Error("Thiếu tiêu đề thông báo")
@@ -152,6 +173,11 @@ class NotificationRepository {
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun markAsRead(notificationId: String): ResultState<Unit> {
         if (notificationId.isBlank()) return ResultState.Error("Thiếu mã thông báo")
 
@@ -168,6 +194,11 @@ class NotificationRepository {
             ResultState.Error(e.message ?: "Cập nhật trạng thái thông báo thất bại")
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun markAllAsRead(userId: String): ResultState<Unit> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
@@ -194,6 +225,11 @@ class NotificationRepository {
             ResultState.Error(e.message ?: "Đánh dấu đã đọc tất cả thất bại")
         }
     }
+
+    /**
+     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun addNotificationToCourseEnrollments(
         courseId: String,
@@ -257,6 +293,11 @@ class NotificationRepository {
         return "$notificationCachePrefix:$userId:${pageRequest.normalizedPageSize}:$cursorPart"
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     fun purchaseSuccessTemplate(itemCount: Int, courseTitle: String? = null): NotificationTemplate {
         val normalizedCount = itemCount.coerceAtLeast(1)
         val body = if (normalizedCount == 1 && !courseTitle.isNullOrBlank()) {
@@ -270,12 +311,22 @@ class NotificationRepository {
         )
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     fun courseUpdatedTemplate(courseTitle: String): NotificationTemplate {
         return NotificationTemplate(
             title = "Khóa học được cập nhật",
             body = "Giảng viên vừa cập nhật nội dung khóa $courseTitle."
         )
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     fun quizCreatedTemplate(quizTitle: String, courseTitle: String? = null): NotificationTemplate {
         val body = if (!courseTitle.isNullOrBlank()) {
@@ -289,6 +340,11 @@ class NotificationRepository {
         )
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     fun studyReminderTemplate(courseTitle: String? = null): NotificationTemplate {
         val normalizedCourseTitle = courseTitle?.trim().orEmpty()
         val body = if (normalizedCourseTitle.isNotBlank()) {
@@ -301,6 +357,11 @@ class NotificationRepository {
             body = body
         )
     }
+
+    /**
+     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun addStudyReminderIfNeeded(
         userId: String,
@@ -342,6 +403,11 @@ class NotificationRepository {
 
 
     // Dữ liệu mẫu để demo UI khi cần.
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getNotificationsMock(userId: String): ResultState<List<NotificationItem>> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 

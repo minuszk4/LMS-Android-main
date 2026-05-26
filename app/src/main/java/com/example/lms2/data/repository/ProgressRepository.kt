@@ -11,12 +11,23 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository ProgressRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class ProgressRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
     private val progressCollection = firestore.collection("progress")
     private val lessonProgressCollection = firestore.collection("lessonProgress")
     private val quizProgressCollection = firestore.collection("quizProgress")
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getProgress(userId: String, courseId: String): ResultState<Progress?> {
         return try {
@@ -29,6 +40,11 @@ class ProgressRepository {
             ResultState.Error(e.message ?: "Lấy tiến độ thất bại")
         }
     }
+
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun updateLastAccessed(
         userId: String,
@@ -54,6 +70,11 @@ class ProgressRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getLessonProgress(
         userId: String,
         lessonId: String
@@ -68,6 +89,11 @@ class ProgressRepository {
             ResultState.Error(e.message ?: "Lấy tiến độ bài học thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getAllLessonProgress(
         userId: String,
@@ -84,6 +110,11 @@ class ProgressRepository {
             ResultState.Error(e.message ?: "Lấy tiến độ các bài học thất bại")
         }
     }
+
+    /**
+     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun toggleLessonComplete(
         userId: String,
@@ -139,6 +170,11 @@ class ProgressRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getQuizProgress(
         userId: String,
         quizId: String
@@ -153,6 +189,11 @@ class ProgressRepository {
             ResultState.Error(e.message ?: "Lấy tiến độ bài kiểm tra thất bại")
         }
     }
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun loadCourseProgress(
         userId: String,
@@ -196,6 +237,11 @@ class ProgressRepository {
             ResultState.Error(e.message ?: "Tải tiến độ khóa học thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getAllProgress(): ResultState<List<Progress>> {
         return try {

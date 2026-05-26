@@ -22,6 +22,12 @@ import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Triển khai repository GeminiChatbotRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class GeminiChatbotRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -180,6 +186,11 @@ class GeminiChatbotRepository {
         )
     )
 
+    /**
+     * Lấy dữ liệu hiện có hoặc tạo mới nếu tài nguyên chưa tồn tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getOrCreateActiveSession(
         userId: String,
         defaultTitle: String = "Trợ lý học tập AI"
@@ -207,6 +218,11 @@ class GeminiChatbotRepository {
         }
     }
 
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun createSession(
         userId: String,
         title: String = "Trợ lý học tập AI"
@@ -231,6 +247,11 @@ class GeminiChatbotRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getUserSessions(userId: String): ResultState<List<ChatSession>> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -250,6 +271,11 @@ class GeminiChatbotRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getSessionMessages(sessionId: String): ResultState<List<ChatMessage>> {
         if (sessionId.isBlank()) return ResultState.Error("Thiếu thông tin phiên chat")
 
@@ -268,6 +294,11 @@ class GeminiChatbotRepository {
             ResultState.Error(e.message ?: "Lấy lịch sử hội thoại thất bại")
         }
     }
+
+    /**
+     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun sendMessage(
         sessionId: String,
@@ -308,6 +339,11 @@ class GeminiChatbotRepository {
             ResultState.Error(e.message ?: "Gửi tin nhắn thất bại")
         }
     }
+
+    /**
+     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun sendUserMessageAndAIReply(
         sessionId: String,

@@ -17,6 +17,12 @@ import com.example.lms2.util.AuthEvent
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
+/**
+ * Điều phối trạng thái giao diện trong AuthViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class AuthViewModel(
     private val repository: AuthRepository = AuthRepository()
 ) : ViewModel() {
@@ -32,6 +38,11 @@ class AuthViewModel(
             getCurrentUser()
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun getCurrentUser() {
         val uid = repository.getCurrentUserId() ?: return
@@ -53,7 +64,17 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun getCurrentUserId(): String = repository.getCurrentUserId() ?: ""
+
+    /**
+     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun isUserLoggedIn(): Boolean = repository.isUserLoggedIn()
 
@@ -61,27 +82,57 @@ class AuthViewModel(
        UI STATE UPDATE
        ======================== */
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onFullNameChange(name: String) {
         _uiState.value = _uiState.value.copy(fullName = name)
     }
+
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun onEmailChange(email: String) {
         _uiState.value = _uiState.value.copy(email = email)
     }
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onPasswordChange(password: String) {
         _uiState.value = _uiState.value.copy(password = password)
     }
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onConfirmPasswordChange(password: String) {
         _uiState.value = _uiState.value.copy(confirmPassword = password)
     }
+
+    /**
+     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun togglePasswordVisibility() {
         _uiState.value = _uiState.value.copy(
             passwordVisible = !_uiState.value.passwordVisible
         )
     }
+
+    /**
+     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun toggleConfirmPasswordVisibility() {
         _uiState.value = _uiState.value.copy(
@@ -92,6 +143,11 @@ class AuthViewModel(
     /* ========================
        LOGIN / REGISTER
        ======================== */
+
+    /**
+     * Thực hiện quy trình đăng nhập và xử lý kết quả xác thực trả về.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun login() {
         val currentState = _uiState.value
@@ -129,6 +185,11 @@ class AuthViewModel(
             }
         }
     }
+
+    /**
+     * Thực hiện quy trình đăng ký và lưu dữ liệu tài khoản mới.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun register() {
         val currentState = _uiState.value
@@ -171,6 +232,11 @@ class AuthViewModel(
        GOOGLE SIGN IN
        ======================== */
 
+    /**
+     * Thực hiện quy trình đăng nhập và xử lý kết quả xác thực trả về.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun signInWithGoogle(idToken: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
@@ -202,6 +268,11 @@ class AuthViewModel(
        FORGOT PASSWORD
        ======================== */
 
+    /**
+     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun sendPasswordResetEmail() {
         val email = _uiState.value.email
         if (email.isBlank()) {
@@ -226,6 +297,11 @@ class AuthViewModel(
             }
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun saveStudentProfile(
         fullName: String,
@@ -294,16 +370,31 @@ class AuthViewModel(
        OTHER
        ======================== */
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onShowError(message: String) {
         viewModelScope.launch {
             _event.emit(AuthEvent.ShowError(message))
         }
     }
 
+    /**
+     * Đăng xuất người dùng khỏi phiên làm việc hiện tại.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun logout() {
         repository.logout()
         _uiState.value = AuthUiState()
     }
+
+    /**
+     * Gửi dữ liệu biểu mẫu hoặc yêu cầu nghiệp vụ để hệ thống tiếp nhận.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun submitInstructorApplication(application: InstructorApplication) {
         val user = _uiState.value.currentUser

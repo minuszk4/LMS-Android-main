@@ -21,6 +21,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong CourseViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class CourseViewModel(
     private val repository: CourseRepository = CourseRepository(),
     private val categoryRepository: CategoryRepository = CategoryRepository(),
@@ -39,6 +45,13 @@ class CourseViewModel(
         getCategories()
     }
 
+    /**
+     * Tải danh sách danh mục khóa học.
+     *
+     * Hàm này được gọi ngay khi ViewModel khởi tạo và có thể gọi lại khi người dùng
+     * cần làm mới dữ liệu. Trạng thái tải được ghi vào `uiState` để màn hình hiển thị
+     * loading hoặc thông báo lỗi tương ứng.
+     */
     fun getCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingCategories = true) }
@@ -62,6 +75,11 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Lấy toàn bộ khóa học thuộc về một giảng viên cụ thể.
+     *
+     * Dữ liệu này phục vụ màn hình quản lý khóa học của giảng viên sau khi đăng nhập.
+     */
     fun getMyCourses(instructorId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -78,6 +96,11 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Tải trang đầu tiên của danh sách khóa học đã phát hành.
+     *
+     * Hàm sử dụng phân trang và cache để tối ưu màn hình khám phá khóa học dành cho học viên.
+     */
     fun getAllPublishedCourses() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
@@ -111,6 +134,12 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Tải danh sách khóa học gợi ý cho người dùng ở trang chủ.
+     *
+     * Nếu thiếu `userId` hoặc backend recommendation gặp lỗi, hàm sẽ fallback sang
+     * danh sách khóa học đã phát hành để tránh làm rỗng khu vực gợi ý trên giao diện.
+     */
     fun getSuggestedCourses(userId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
@@ -161,6 +190,12 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Ghi nhận việc người dùng nhấn vào một khóa học trong cụm gợi ý.
+     *
+     * Sự kiện này được gửi sang repository recommendation để phục vụ huấn luyện hoặc
+     * đánh giá chất lượng mô hình gợi ý sau này.
+     */
     fun onSuggestedCourseClicked(userId: String, courseId: String) {
         if (userId.isBlank() || courseId.isBlank()) return
         viewModelScope.launch {
@@ -173,6 +208,11 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Chỉ log impression khi tập khóa học gợi ý thực sự thay đổi.
+     *
+     * Cơ chế chữ ký giúp tránh ghi trùng dữ liệu analytics mỗi lần Compose recomposition.
+     */
     private fun logSuggestedImpressionsIfNeeded(userId: String, courses: List<Course>) {
         if (userId.isBlank() || courses.isEmpty()) return
         val signature = buildString {
@@ -192,14 +232,55 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onTitleChange() = _uiState.update { it.copy(titleError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onDescriptionChange() = _uiState.update { it.copy(descriptionError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onPriceChange() = _uiState.update { it.copy(priceError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onCategorySelected() = _uiState.update { it.copy(categoryError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onDurationChange() = _uiState.update { it.copy(durationError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onThumbnailSelected() = _uiState.update { it.copy(thumbnailUrlError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onIntroVideoUrlChange() = _uiState.update { it.copy(introVideoUrlError = null) }
 
+    /**
+     * Kiểm tra hợp lệ dữ liệu đầu vào trước khi tạo hoặc cập nhật khóa học.
+     *
+     * Hàm này không chỉ trả về đúng hoặc sai mà còn ghi lỗi chi tiết vào `uiState`
+     * để form có thể hiển thị thông báo ngay bên cạnh trường nhập liệu tương ứng.
+     */
     private fun validate(course: Course, isFree: Boolean, priceStr: String): Boolean {
         var isValid = true
         
@@ -264,6 +345,13 @@ class CourseViewModel(
         return isValid
     }
 
+    /**
+     * Tạo mới khóa học sau khi đã vượt qua bước kiểm tra dữ liệu.
+     *
+     * Pipeline chính gồm: kiểm tra thông tin tài khoản ngân hàng của giảng viên,
+     * tải ảnh thumbnail lên Cloudinary nếu người dùng vừa chọn ảnh cục bộ, sau đó
+     * gửi dữ liệu hoàn chỉnh xuống repository để lưu trên Firestore.
+     */
     fun createCourse(course: Course, isFree: Boolean, priceStr: String) {
         if (!validate(course, isFree, priceStr)) return
         
@@ -336,6 +424,12 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Cập nhật khóa học hiện có.
+     *
+     * Nếu thumbnail là URI cục bộ mới chọn từ thiết bị, hàm sẽ upload lại trước khi
+     * gọi repository cập nhật để tránh lưu trực tiếp `content://` vào CSDL.
+     */
     fun updateCourse(course: Course, isFree: Boolean, priceStr: String) {
         if (!validate(course, isFree, priceStr)) return
 
@@ -379,6 +473,9 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Xóa khóa học và làm mới danh sách quản lý của giảng viên.
+     */
     fun deleteCourse(courseId: String, instructorId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
@@ -393,6 +490,9 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Đảo trạng thái phát hành của khóa học giữa nháp và công khai.
+     */
     fun togglePublishStatus(courseId: String, instructorId: String) {
         viewModelScope.launch {
             val course = _uiState.value.courses.find { it.id == courseId } ?: return@launch
@@ -408,6 +508,11 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Gán khóa học hiện tại vào trạng thái màn hình form.
+     *
+     * Đồng thời xóa các lỗi cũ để tránh giữ lại thông báo validation của lần thao tác trước.
+     */
     fun onCourseSelected(course: Course?) {
         _uiState.update { 
             it.copy(
@@ -424,6 +529,11 @@ class CourseViewModel(
         }
     }
 
+    /**
+     * Tải thêm các khóa học đã phát hành ở trang khám phá.
+     *
+     * Hàm dừng sớm nếu đang tải hoặc đã hết dữ liệu nhằm tránh gửi nhiều truy vấn trùng nhau.
+     */
     fun loadMorePublishedCourses() {
         val currentState = _uiState.value
         if (currentState.isLoading || currentState.isLoadingMore || !currentState.hasMorePublishedCourses) return

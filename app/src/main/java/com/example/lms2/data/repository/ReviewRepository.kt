@@ -6,11 +6,22 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository ReviewRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class ReviewRepository {
 
 	private val firestore = FirebaseFirestore.getInstance()
 	private val reviewsCollection = firestore.collection("reviews")
 	private val coursesCollection = firestore.collection("courses")
+
+	/**
+	 * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+	 * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+	 */
 
 	suspend fun upsertReview(
 		courseId: String,
@@ -54,6 +65,11 @@ class ReviewRepository {
 		}
 	}
 
+	/**
+	 * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+	 * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+	 */
+
 	suspend fun getCourseReviews(courseId: String): ResultState<List<Review>> {
 		return try {
 			val snapshot = reviewsCollection
@@ -68,6 +84,11 @@ class ReviewRepository {
 		}
 	}
 
+	/**
+	 * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+	 * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+	 */
+
 	suspend fun getMyReview(courseId: String, userId: String): ResultState<Review?> {
 		return try {
 			val snapshot = reviewsCollection
@@ -80,6 +101,11 @@ class ReviewRepository {
 		}
 	}
 
+
+	/**
+	 * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+	 * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+	 */
 
 	suspend fun deleteReview(courseId: String, userId: String): ResultState<Unit> {
 		return try {

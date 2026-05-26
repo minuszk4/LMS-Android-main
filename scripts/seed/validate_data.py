@@ -4,12 +4,17 @@ Chạy: python validate_data.py --json seed_data.json
 """
 
 import json
+# Validator nay la lop kiem tra an toan cho du lieu synthetic. No dam bao
+# file JSON duoc sinh ra van khop voi cac gia dinh ma Android app,
+# payment backend va recommendation service dang su dung.
 import argparse
 import sys
 from collections import defaultdict
 from typing import Dict, List, Any
 
 class DataValidator:
+    """Bo kiem tra cau truc va business rule cho snapshot seed JSON."""
+
     def __init__(self, data: Dict[str, List[Any]]):
         self.data = data
         self.errors = []
@@ -17,6 +22,8 @@ class DataValidator:
         self.stats = {}
 
     def validate_all(self):
+        # Chay dung nhung nhom kiem tra ma nguoi review thuong doi chieu:
+        # so luong, lien ket cheo collection, uniqueness, enum va business rule.
         """Chạy tất cả kiểm tra"""
         print("🔍 Bắt đầu kiểm tra dữ liệu...")
         
@@ -29,6 +36,8 @@ class DataValidator:
         self._print_report()
 
     def _check_count_summary(self):
+        # Thong ke so luong record vua huu ich cho smoke test, vua co the dua
+        # thang vao phan mo ta do phu du lieu demo trong bao cao.
         """Thống kê số lượng record"""
         print("\n📊 Thống kê:")
         for collection, docs in self.data.items():
@@ -38,6 +47,8 @@ class DataValidator:
                 print(f"  {collection:20} : {count:4} records")
 
     def _check_no_orphans(self):
+        # Firestore khong enforce khoa ngoai, vi vay can mo phong viec kiem tra
+        # tham chieu o day de bat loi truoc khi dua du lieu len staging/demo.
         """Kiểm tra FK orphan (record FK mà PK ko tồn tại)"""
         print("\n🔗 Kiểm tra Foreign Key...")
         
@@ -110,6 +121,8 @@ class DataValidator:
             print("  ✅ Không có orphan records")
 
     def _check_unique_constraints(self):
+        # Nhieu collection ma hoa tinh duy nhat nghiep vu ngay trong document
+        # ID, vi du cap user-course, nen can kiem tra ky o day.
         """Kiểm tra unique constraints"""
         print("\n🔐 Kiểm tra Unique Constraints...")
         
@@ -142,6 +155,8 @@ class DataValidator:
             print(f"  ✅ CartItems unique (n={len(cart_item_ids)})")
 
     def _check_enum_values(self):
+        # Kiem tra enum giup bao ve UI Android va lop repository khoi cac gia
+        # tri ma app khong biet render hoac xu ly theo nhanh nao.
         """Kiểm tra giá trị enum hợp lệ"""
         print("\n📋 Kiểm tra Enum Values...")
         
@@ -186,6 +201,8 @@ class DataValidator:
         print("  ✅ Tất cả enum values hợp lệ")
 
     def _check_business_rules(self):
+        # Day la nhom rule vuot qua muc schema don gian, vi du range rating
+        # cua review hoac itemCount trong gio hang.
         """Kiểm tra quy tắc nghiệp vụ"""
         print("\n✅ Kiểm tra Business Rules...")
         
@@ -210,6 +227,8 @@ class DataValidator:
         print("  ✅ Business rules hợp lệ")
 
     def _print_report(self):
+        # Bao cao CLI duoc in o dang de doc de co the dan vao deployment note
+        # hoac bao cao ky thuat khi can.
         """In báo cáo kiểm tra"""
         print("\n" + "="*50)
         print("📋 KẾT QUẢ KIỂM TRA")

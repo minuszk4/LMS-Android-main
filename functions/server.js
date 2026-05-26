@@ -1,3 +1,12 @@
+/**
+ * Backend webhook va tao phien thanh toan cho du an LMS Android.
+ *
+ * Nhiem vu chinh:
+ * - xac thuc caller truoc khi tao request thanh toan MoMo,
+ * - ky request gui di va xac minh chu ky IPN gui ve,
+ * - luu vet giao dich vao Firestore,
+ * - finalize order thanh cong bang enrollment va payout record.
+ */
 const express = require("express");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
@@ -8,7 +17,8 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Initialize Firebase Admin
+// Khoi tao Firebase Admin mot lan de server co the doc/ghi Firestore
+// va xac minh Firebase ID token do Android client gui len.
 const serviceAccount = {
   type: "service_account",
   project_id: process.env.FIREBASE_PROJECT_ID,
@@ -50,6 +60,8 @@ const DEFAULT_IPN_FIELDS = [
 const DEFAULT_MOMO_CREATE_URL = "https://test-payment.momo.vn/v2/gateway/api/create";
 
 async function authenticateFirebaseUser(req, res, next) {
+  // Chi user so huu order moi duoc tao payment session cho order do.
+  // Viec xac minh duoc thuc hien o phia server bang Firebase Auth.
   const authHeader = String(req.headers.authorization || "").trim();
   if (!authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ resultCode: 401, message: "Missing bearer token" });
@@ -71,6 +83,8 @@ async function authenticateFirebaseUser(req, res, next) {
 }
 
 function normalizeTransferContent(value) {
+  // Doi soat thanh toan so sanh transfer content o dang da chuan hoa
+  // de tranh sai lech do khoang trang, dau tieng Viet hoac ky tu dac biet.
   if (!value) return "";
   return String(value)
     .normalize("NFD")
@@ -81,6 +95,8 @@ function normalizeTransferContent(value) {
 }
 
 function parseFieldListFromEnv() {
+  // Danh sach field ky co the tuy bien qua env, nhung accessKey luon phai
+  // co mat vi day la mot phan cua hop dong xac minh IPN voi MoMo.
   const raw = process.env.MOMO_IPN_FIELDS || "";
   const fields = !raw.trim()
     ? DEFAULT_IPN_FIELDS
@@ -102,6 +118,8 @@ function buildRawSignature(payload, fieldList, override = {}) {
 }
 
 function parseExtraData(extraData) {
+  // MoMo co the tra extraData o dang JSON truc tiep hoac JSON ma hoa base64.
+  // Parser nay ho tro ca hai de logic fulfill khong phu thuoc dinh dang.
   if (!extraData || typeof extraData !== "string") return {};
 
   const tryParseJson = (text) => {
@@ -130,6 +148,8 @@ function parseExtraData(extraData) {
 }
 
 function resolveTransferContent(payload) {
+  // Transfer content duoc luu lai ro rang vi se duoc tai su dung trong payout,
+  // audit va cac tinh huong troubleshooting tren Firestore.
   const extraData = parseExtraData(payload.extraData);
   const candidates = [
     extraData.transferContent,
@@ -157,6 +177,8 @@ function shouldVerifySignature() {
 }
 
 function verifyMomoSignature(payload) {
+  // Xac minh chu ky de ngan webhook gia mao danh dau order la da thanh toan.
+  // Chuoi HMAC phai dung dung thu tu field theo dac ta cua MoMo.
   const incomingSignature = String(payload.signature || "").trim();
   if (!incomingSignature) {
     return { ok: false, reason: "Missing signature" };
@@ -190,6 +212,8 @@ function verifyMomoSignature(payload) {
 }
 
 function requireEnv(name) {
+  // Loi cau hinh can duoc phat hien som, tranh tao ra payment request nua dung
+  // nua sai roi moi that bai o giua luong.
   const value = String(process.env[name] || "").trim();
   if (!value) {
     throw new Error(`${name} is required`);
@@ -213,6 +237,8 @@ function buildCreateSignaturePayload(payload) {
 }
 
 async function createMomoPayment(payload) {
+  // Ham nay tao request da duoc ky gui sang MoMo va luu toan bo cap
+  // request/response vao Firestore de phuc vu support va audit.
   const endpoint = String(process.env.MOMO_CREATE_ENDPOINT || DEFAULT_MOMO_CREATE_URL).trim();
   const partnerCode = requireEnv("MOMO_PARTNER_CODE");
   const accessKey = requireEnv("MOMO_ACCESS_KEY");
@@ -310,6 +336,8 @@ async function createMomoPayment(payload) {
 }
 
 async function upsertBankTransaction(payload) {
+  // Moi webhook deu duoc luu xuong truoc de viec truy vet khong phu thuoc vao
+  // viec buoc fulfill phia sau co thanh cong ngay trong request do hay khong.
   const transId = String(payload.transId || "").trim();
   const requestId = String(payload.requestId || "").trim();
   const fallbackId = crypto.createHash("sha1").update(JSON.stringify(payload)).digest("hex").slice(0, 16);
@@ -384,6 +412,8 @@ function buildRecommendationFeedbackEvent({
 }
 
 async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
+  // Fulfillment duoc goi trong mot Firestore transaction de enrollment,
+  // xac nhan order, tao payout va xoa cart giu duoc tinh nhat quan.
   if (!isMomoSuccess(payload)) {
     return { updated: false, reason: "IPN is not successful" };
   }
@@ -584,6 +614,8 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
 }
 
 // Express Routes
+// Android client goi endpoint nay sau khi da tao order trong Firestore
+// va truoc khi dieu huong hoc vien sang luong thanh toan MoMo.
 app.post("/createMomoPayment", authenticateFirebaseUser, async (req, res) => {
   const payload = req.body && typeof req.body === "object" ? req.body : {};
 
@@ -643,6 +675,8 @@ app.post("/createMomoPayment", authenticateFirebaseUser, async (req, res) => {
 });
 
 app.post("/momoIpnWebhook", async (req, res) => {
+  // Day la nguon chan ly phia server cho viec finalize order.
+  // Client tuyet doi khong tu danh dau paymentStatus = SUCCESS.
   const payload = req.body && typeof req.body === "object" ? req.body : {};
   console.log("[momoIpnWebhook] Incoming payload", payload);
 

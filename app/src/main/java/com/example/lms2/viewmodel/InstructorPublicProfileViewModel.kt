@@ -15,6 +15,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong InstructorPublicProfileViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class InstructorPublicProfileViewModel(
     private val repository: InstructorRepository = InstructorRepository(),
     private val courseRepository: CourseRepository = CourseRepository()
@@ -27,6 +33,11 @@ class InstructorPublicProfileViewModel(
     val event = _event.asSharedFlow()
 
     private var loadedInstructorId: String = ""
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun init(instructorId: String) {
         if (instructorId.isBlank()) return

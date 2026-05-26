@@ -7,15 +7,19 @@
 .externalNativeBuild
 .cxx
 google-services.json
-
+*.md
 # Phím ký App (Keystores) - Rất quan trọng để bảo mật
 *.jks
 *.keystore
 *.google_play_keys
-
+*.drawio
+*.svg
+*.docx
+*.pyc
 # Log files
 *.log
 
 # OS generated files
 .DS_Store
 Thumbs.db
+ALL_KOTLIN_MODELS.md

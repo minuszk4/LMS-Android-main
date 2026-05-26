@@ -18,6 +18,12 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong LessonViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class LessonViewModel(
     private val repository: CurriculumRepository = CurriculumRepository()
 ) : ViewModel() {
@@ -27,6 +33,11 @@ class LessonViewModel(
 
     private val _eventChannel = Channel<LessonEvent>(Channel.BUFFERED)
     val events = _eventChannel.receiveAsFlow()
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun initWith(lesson: Lesson?, courseId: String) {
         if (lesson != null) {
@@ -46,10 +57,35 @@ class LessonViewModel(
         }
     }
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onTitleChange(value: String) = _uiState.update { it.copy(title = value, titleError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onDescriptionChange(value: String) = _uiState.update { it.copy(description = value, descriptionError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onVideoUrlChange(value: String) = _uiState.update { it.copy(videoUrl = value, videoUrlError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onDurationChange(value: String) = _uiState.update { it.copy(duration = value, durationError = null) }
+
+    /**
+     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun addAttachment(uri: Uri, fileName: String, fileSize: String, mimeType: String) {
         val newAttachment = Attachment(
@@ -61,9 +97,19 @@ class LessonViewModel(
         _uiState.update { it.copy(attachments = it.attachments + newAttachment) }
     }
 
+    /**
+     * Loại bỏ phần tử tương ứng khỏi tập dữ liệu đang quản lý.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun removeAttachment(attachment: Attachment) {
         _uiState.update { it.copy(attachments = it.attachments - attachment) }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun save() {
         if (!validate()) return

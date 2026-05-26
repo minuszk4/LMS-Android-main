@@ -1,3 +1,11 @@
+"""Model tinh diem recommendation duoc dung trong ML backend cua LMS.
+
+Lop nay ho tro ba che do phuc vu:
+1. RandomForest da duoc train,
+2. artifact linear cu de tuong thich nguoc,
+3. fallback heuristic khi khong nap duoc artifact.
+"""
+
 import json
 import pickle
 import time
@@ -9,6 +17,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 
 class RecommendationModel:
+    """Dong goi logic trich xuat feature, train, score va luu/nap model."""
+
     def __init__(self):
         self.model = None
         self.scaler = StandardScaler()
@@ -32,8 +42,8 @@ class RecommendationModel:
         """
         Extract features for a course given a user profile.
         
-        user_profile: {categoryWeights, levelWeights, instructorWeights}
-        course: {id, categoryId, level, instructorId, rating, enrollmentCount, lessonCount}
+        Vector feature tron cac tin hieu ve so thich hoc vien, chat luong
+        khoa hoc va mot so heuristic nghiep vu nhu do moi cua course.
         """
         category_affinity = float(user_profile.get('categoryWeights', {}).get(course.get('categoryId'), 0.0))
         level_affinity = float(user_profile.get('levelWeights', {}).get(course.get('level'), 0.0))
@@ -75,7 +85,8 @@ class RecommendationModel:
         """
         Predict recommendation scores for courses.
         
-        Returns: {courseId: score, ...}
+        Ham uu tien dung artifact da train, nhung van co the fallback sang
+        artifact linear cu hoac heuristic thuần khi can.
         """
         if self.model is None and self.linear_weights is None:
             return self._heuristic_scores(user_profile, courses, user_enrollments)
@@ -147,7 +158,8 @@ class RecommendationModel:
         sample_weight: Optional[np.ndarray]
     ) -> None:
         """Train the recommendation model with optional sample weights."""
-        # Normalize features
+        # Chuan hoa feature de bo phan classifier nhin thay cac thang do so
+        # on dinh giua engagement, popularity va cac truong lien quan gia.
         X_scaled = self.scaler.fit_transform(X_train)
 
         self.model = RandomForestClassifier(
@@ -214,10 +226,12 @@ class RecommendationModel:
         self.feature_names = payload.get("feature_names", self.feature_names)
 
     def _calculate_linear_score(self, features: np.ndarray) -> float:
+        """Tinh diem cho mot vector feature bang artifact linear cu."""
         logits = float(np.dot(features, self.linear_weights) + self.linear_bias)
         return 1.0 / (1.0 + np.exp(-np.clip(logits, -20.0, 20.0)))
 
     def _calculate_price_affinity(self, user_profile: Dict, course_price: float) -> float:
+        """Do muc do phu hop cua gia course voi lich su cua hoc vien."""
         stats = user_profile.get('priceStats', {}) or {}
         if course_price <= 0.0:
             return 0.55
@@ -232,6 +246,7 @@ class RecommendationModel:
         return 1.0 - normalized_gap
 
     def _calculate_course_freshness(self, course: Dict) -> float:
+        """Uu tien khoa hoc moi hon bang ham suy giam theo thoi gian."""
         now_ms = int(time.time() * 1000)
         created_at = int(course.get('createdAt', 0) or 0)
         age_days = ((now_ms - created_at) / (24 * 60 * 60 * 1000.0)) if created_at > 0 else 365.0

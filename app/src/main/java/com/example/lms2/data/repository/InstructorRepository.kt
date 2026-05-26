@@ -6,10 +6,21 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository InstructorRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class InstructorRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
     private val instructorsCollection = firestore.collection("instructors")
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getInstructorById(instructorId: String): ResultState<Instructor> {
         if (instructorId.isBlank()) return ResultState.Error("Thiếu thông tin giảng viên")
@@ -49,6 +60,11 @@ class InstructorRepository {
         }
     }
 
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun updateInstructorProfile(
         instructorId: String,
         expertise: String,
@@ -82,6 +98,11 @@ class InstructorRepository {
             ResultState.Error(e.message ?: "Cập nhật thông tin giảng viên thất bại")
         }
     }
+
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun updateBankInfo(
         instructorId: String,
@@ -121,6 +142,11 @@ class InstructorRepository {
             ResultState.Error(e.message ?: "Cập nhật thông tin ngân hàng thất bại")
         }
     }
+
+    /**
+     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     fun hasValidBankInfo(instructor: Instructor): Boolean {
         if (

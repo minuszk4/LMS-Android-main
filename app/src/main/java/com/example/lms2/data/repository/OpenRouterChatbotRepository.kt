@@ -24,6 +24,12 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
+/**
+ * Triển khai repository OpenRouterChatbotRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 data class OpenRouterToolFunction(
     @Json(name = "name")
     val name: String,
@@ -33,6 +39,10 @@ data class OpenRouterToolFunction(
     val parameters: Map<String, Any>
 )
 
+/**
+ * Khai báo OpenRouterTool trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
+
 data class OpenRouterTool(
     @Json(name = "type")
     val type: String = "function",
@@ -40,12 +50,20 @@ data class OpenRouterTool(
     val function: OpenRouterToolFunction
 )
 
+/**
+ * Khai báo OpenRouterToolCallFunction trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
+
 data class OpenRouterToolCallFunction(
     @Json(name = "name")
     val name: String,
     @Json(name = "arguments")
     val arguments: String? = null
 )
+
+/**
+ * Khai báo OpenRouterToolCall trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 data class OpenRouterToolCall(
     @Json(name = "id")
@@ -55,6 +73,10 @@ data class OpenRouterToolCall(
     @Json(name = "function")
     val function: OpenRouterToolCallFunction
 )
+
+/**
+ * Khai báo OpenRouterMessage trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 data class OpenRouterMessage(
     @Json(name = "role")
@@ -68,6 +90,10 @@ data class OpenRouterMessage(
     @Json(name = "name")
     val name: String? = null
 )
+
+/**
+ * Khai báo OpenRouterRequest trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 data class OpenRouterRequest(
     @Json(name = "model")
@@ -86,18 +112,35 @@ data class OpenRouterRequest(
     val maxTokens: Int = 1024
 )
 
+/**
+ * Khai báo OpenRouterChoice trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
+
 data class OpenRouterChoice(
     @Json(name = "message")
     val message: OpenRouterMessage
 )
+
+/**
+ * Khai báo OpenRouterResponse trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 data class OpenRouterResponse(
     @Json(name = "choices")
     val choices: List<OpenRouterChoice> = emptyList()
 )
 
+/**
+ * Khai báo OpenRouterService trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
+
 interface OpenRouterService {
     @POST("v1/chat/completions")
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun chat(
         @Header("Authorization") authorization: String,
         @Header("HTTP-Referer") referer: String = "https://lms-android.local",
@@ -106,10 +149,18 @@ interface OpenRouterService {
     ): OpenRouterResponse
 }
 
+/**
+ * Khai báo PendingCourseSelection trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
+
 data class PendingCourseSelection(
     val action: String,
     val candidates: List<Map<String, String>>
 )
+
+/**
+ * Khai báo OpenRouterChatbotRepository trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 class OpenRouterChatbotRepository {
 
@@ -407,6 +458,11 @@ class OpenRouterChatbotRepository {
             .create(OpenRouterService::class.java)
     }
 
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun createSession(userId: String, title: String): ResultState<ChatSession> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -427,6 +483,11 @@ class OpenRouterChatbotRepository {
             ResultState.Error(e.message ?: "Tạo phiên chat thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hiện có hoặc tạo mới nếu tài nguyên chưa tồn tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getOrCreateActiveSession(
         userId: String,
@@ -452,6 +513,11 @@ class OpenRouterChatbotRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getUserSessions(userId: String): ResultState<List<ChatSession>> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -471,6 +537,11 @@ class OpenRouterChatbotRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getSessionMessages(sessionId: String): ResultState<List<ChatMessage>> {
         if (sessionId.isBlank()) return ResultState.Error("Thiếu ID phiên chat")
 
@@ -489,6 +560,11 @@ class OpenRouterChatbotRepository {
             ResultState.Error(e.message ?: "Lấy tin nhắn thất bại")
         }
     }
+
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun deleteSession(sessionId: String): ResultState<Unit> {
         if (sessionId.isBlank()) return ResultState.Error("Thiếu ID phiên chat")
@@ -512,6 +588,11 @@ class OpenRouterChatbotRepository {
             ResultState.Error(e.message ?: "Xóa phiên chat thất bại")
         }
     }
+
+    /**
+     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun sendMessage(
         sessionId: String,
@@ -551,6 +632,11 @@ class OpenRouterChatbotRepository {
             ResultState.Error(e.message ?: "Gửi tin nhắn thất bại")
         }
     }
+
+    /**
+     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun sendUserMessageAndAIReply(
         sessionId: String,

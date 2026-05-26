@@ -12,6 +12,12 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository PayoutRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class PayoutRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -21,6 +27,11 @@ class PayoutRepository {
     private val coursesCollection = firestore.collection("courses")
     private val instructorsCollection = firestore.collection("instructors")
     private val usersCollection = firestore.collection("users")
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getInstructorPayouts(): ResultState<List<InstructorPayout>> {
         return try {
@@ -45,6 +56,11 @@ class PayoutRepository {
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun markPayoutAsPaid(
         payoutId: String,
         adminUid: String,
@@ -56,6 +72,11 @@ class PayoutRepository {
             manualTransferReference = manualTransferReference
         )
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun markPayoutsAsPaid(
         payoutIds: List<String>,

@@ -15,6 +15,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong NotificationViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class NotificationViewModel(
     private val repository: NotificationRepository = NotificationRepository()
 ) : ViewModel() {
@@ -27,16 +33,31 @@ class NotificationViewModel(
 
     private var lastUserId: String = ""
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun init(userId: String) {
         if (userId.isBlank()) return
         if (_uiState.value.hasLoadedOnce && lastUserId == userId) return
         loadNotifications(userId = userId, refresh = false)
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun refresh(userId: String) {
         if (userId.isBlank()) return
         loadNotifications(userId = userId, refresh = true)
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun markAsRead(notificationId: String) {
         if (notificationId.isBlank()) return
@@ -64,6 +85,11 @@ class NotificationViewModel(
             }
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun markAllAsRead(userId: String) {
         if (userId.isBlank()) return
@@ -140,6 +166,11 @@ class NotificationViewModel(
             }
         }
     }
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadMore(userId: String) {
         if (userId.isBlank()) return

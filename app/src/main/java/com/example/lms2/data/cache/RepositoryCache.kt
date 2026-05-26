@@ -1,5 +1,11 @@
 package com.example.lms2.data.cache
 
+/**
+ * Cung cấp tiện ích cache cho tầng dữ liệu thông qua RepositoryCache.
+ * File này hỗ trợ repository lưu tạm kết quả truy vấn để giảm số lần đọc Firestore và cải thiện tốc độ phản hồi.
+ * Cơ chế cache được tách riêng nhằm giữ cho logic truy xuất dữ liệu và logic tối ưu hiệu năng không bị trộn lẫn.
+ */
+
 object RepositoryCache {
     // Cache-first mode: read from in-memory cache by default.
     // Mutations should invalidate relevant prefixes to keep cache synchronized.

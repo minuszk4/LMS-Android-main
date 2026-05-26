@@ -1,8 +1,11 @@
 package com.example.lms2.data.model
 
 /**
- * Hồ sơ đăng ký giảng viên do học viên cung cấp để admin duyệt.
+ * Định nghĩa mô hình dữ liệu InstructorApplication dùng trong ứng dụng LMS Android.
+ * File này khai báo contract dữ liệu được trao đổi giữa Firestore, repository, ViewModel và giao diện Compose.
+ * Việc tách riêng model giúp các luồng nghiệp vụ dùng chung một cấu trúc dữ liệu nhất quán và dễ bảo trì.
  */
+
 data class InstructorApplication(
     val expertise: String = "",            // Lĩnh vực chuyên môn
     val experienceYears: Int = 0,           // Số năm kinh nghiệm giảng dạy/làm việc

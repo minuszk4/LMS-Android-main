@@ -25,6 +25,12 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
+/**
+ * Triển khai repository AuthRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class AuthRepository {
 
     companion object {
@@ -36,6 +42,12 @@ class AuthRepository {
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
     private val httpClient = OkHttpClient()
 
+    /**
+     * Đọc hồ sơ người dùng từ collection `users`.
+     *
+     * Hàm này được dùng sau đăng nhập hoặc ở các màn hình hồ sơ khi cần tải đầy đủ
+     * thông tin role, avatar, trạng thái xét duyệt giảng viên và các metadata khác.
+     */
     suspend fun getUserDetails(uid: String): ResultState<User> {
         return try {
             val snapshot = firestore.collection("users").document(uid).get().await()
@@ -50,6 +62,13 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Đăng nhập bằng email và mật khẩu.
+     *
+     * Sau khi Firebase xác thực thành công, repository tiếp tục bảo đảm role admin cấu hình
+     * sẵn được đồng bộ về Firestore và kiểm tra trạng thái hoạt động của tài khoản trước khi
+     * trả `uid` cho tầng gọi phía trên.
+     */
     suspend fun login(
         email: String,
         password: String
@@ -73,6 +92,12 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Đăng ký tài khoản mới bằng email và mật khẩu.
+     *
+     * Sau khi Firebase Authentication tạo user thành công, repository tiếp tục tạo
+     * document tương ứng trong Firestore để lưu role, họ tên và các trạng thái nghiệp vụ.
+     */
     suspend fun register(
         email: String,
         password: String,
@@ -112,6 +137,12 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Đăng nhập bằng Google Sign-In.
+     *
+     * Nếu người dùng đăng nhập lần đầu, repository sẽ tạo hồ sơ mới trong Firestore
+     * trước khi tiếp tục các bước kiểm tra quyền admin cấu hình sẵn và trạng thái hoạt động.
+     */
     suspend fun signInWithGoogle(idToken: String): ResultState<String> {
         return try {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
@@ -145,6 +176,9 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Gửi email khôi phục mật khẩu thông qua Firebase Authentication.
+     */
     suspend fun sendPasswordResetEmail(email: String): ResultState<Unit> {
         return try {
             auth.sendPasswordResetEmail(email.trim()).await()
@@ -156,6 +190,12 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Cập nhật các trường hồ sơ cơ bản của người dùng.
+     *
+     * Repository dùng `SetOptions.merge()` để chỉ ghi đè các trường được phép sửa,
+     * tránh làm mất dữ liệu khác đang tồn tại trong document người dùng.
+     */
     suspend fun updateProfile(
         uid: String,
         fullName: String,
@@ -178,6 +218,12 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Gửi yêu cầu đăng ký trở thành giảng viên.
+     *
+     * Trước khi ghi dữ liệu, repository chuẩn hóa nội dung nhập vào và kiểm tra những
+     * điều kiện tối thiểu như kinh nghiệm, thông tin chuyên môn và trạng thái role hiện tại.
+     */
     suspend fun submitInstructorApplication(
         uid: String,
         application: InstructorApplication
@@ -204,6 +250,10 @@ class AuthRepository {
         return try {
             val userRef = firestore.collection("users").document(uid)
 
+            /**
+             * Transaction được dùng để đảm bảo việc kiểm tra vai trò hiện tại và cập nhật
+             * trạng thái đăng ký giảng viên diễn ra trên cùng một ảnh chụp dữ liệu.
+             */
             firestore.runTransaction { transaction ->
                 val userSnapshot = transaction.get(userRef)
                 val user = userSnapshot.toObject(User::class.java)
@@ -237,6 +287,12 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Tải toàn bộ danh sách tài khoản đang chờ duyệt giảng viên.
+     *
+     * Hàm lặp qua nhiều trang dữ liệu nhỏ để tránh một truy vấn quá lớn và vẫn trả về
+     * kết quả gộp cho màn hình quản trị.
+     */
     suspend fun getPendingInstructorApplications(): ResultState<List<User>> {
         return try {
             val users = mutableListOf<User>()
@@ -265,6 +321,11 @@ class AuthRepository {
             ResultState.Error(e.localizedMessage ?: "Không tải được danh sách chờ duyệt")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getPendingInstructorApplicationsPage(
         pageRequest: PageRequest = PageRequest()
@@ -313,6 +374,11 @@ class AuthRepository {
             ResultState.Error(e.localizedMessage ?: "Không tải được danh sách chờ duyệt")
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun approveInstructorApplication(targetUid: String, adminUid: String): ResultState<Unit> {
         return try {
@@ -368,6 +434,11 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun rejectInstructorApplication(targetUid: String, adminUid: String, reason: String): ResultState<Unit> {
         return try {
             val userRef = firestore.collection("users").document(targetUid)
@@ -403,6 +474,11 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getAllUsers(): ResultState<List<User>> {
         return try {
             val users = mutableListOf<User>()
@@ -431,6 +507,11 @@ class AuthRepository {
             ResultState.Error(e.localizedMessage ?: "Không tải được danh sách người dùng")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getAllUsersPage(
         pageRequest: PageRequest = PageRequest()
@@ -479,6 +560,11 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun setUserActive(uid: String, isActive: Boolean): ResultState<Unit> {
         return try {
             firestore.collection("users")
@@ -493,6 +579,11 @@ class AuthRepository {
             ResultState.Error(e.localizedMessage ?: "Không thể cập nhật trạng thái người dùng")
         }
     }
+
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun createInstructorAccountByAdmin(
         adminUid: String,
@@ -593,13 +684,28 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Đăng xuất người dùng khỏi phiên làm việc hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     fun logout() {
         auth.signOut()
     }
 
+    /**
+     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     fun isUserLoggedIn(): Boolean {
         return auth.currentUser != null
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     fun getCurrentUserId(): String? {
         return auth.currentUser?.uid

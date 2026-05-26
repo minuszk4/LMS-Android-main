@@ -12,6 +12,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
+/**
+ * Khai báo theme hoặc token giao diện trong Theme.
+ * File này chứa màu sắc, typography hoặc cấu hình hiển thị dùng chung cho toàn bộ ứng dụng Compose.
+ * Việc tách riêng lớp theme giúp quản lý diện mạo tổng thể nhất quán và tập trung.
+ */
+
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
     secondary = PurpleGrey80,

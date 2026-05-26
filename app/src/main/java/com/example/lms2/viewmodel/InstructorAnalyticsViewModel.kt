@@ -15,6 +15,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong InstructorAnalyticsViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class InstructorAnalyticsViewModel(
     private val repository: InstructorAnalyticsRepository = InstructorAnalyticsRepository()
 ) : ViewModel() {
@@ -27,16 +33,31 @@ class InstructorAnalyticsViewModel(
 
     private var lastInstructorId: String = ""
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun init(instructorId: String) {
         if (instructorId.isBlank()) return
         if (_uiState.value.hasLoadedOnce && lastInstructorId == instructorId) return
         load(instructorId = instructorId, refresh = false)
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun refresh(instructorId: String) {
         if (instructorId.isBlank()) return
         load(instructorId = instructorId, refresh = true)
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun selectRange(instructorId: String, range: InstructorTimeRange) {
         if (instructorId.isBlank()) return

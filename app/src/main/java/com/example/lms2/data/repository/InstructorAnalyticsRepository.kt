@@ -20,6 +20,12 @@ import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.max
 
+/**
+ * Triển khai repository InstructorAnalyticsRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class InstructorAnalyticsRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -29,6 +35,11 @@ class InstructorAnalyticsRepository {
     private val orderItemsCollection = firestore.collection("orderItems")
     private val progressCollection = firestore.collection("progress")
     private val quizProgressCollection = firestore.collection("quizProgress")
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getInstructorAnalytics(
         instructorId: String,

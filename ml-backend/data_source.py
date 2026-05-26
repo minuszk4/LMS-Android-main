@@ -1,3 +1,10 @@
+"""Tien ich nap du lieu runtime va du lieu huan luyen cho API recommendation.
+
+Service recommendation co the chay theo hai nguon:
+- snapshot seed local cho demo va phat trien offline,
+- Firestore cho moi truong muon su dung du lieu thuc te.
+"""
+
 import json
 import os
 import time
@@ -23,11 +30,13 @@ DEFAULT_COLLECTIONS = (
 
 
 def load_seed_data(seed_data_path: Path = DEFAULT_SEED_DATA_PATH) -> dict:
+    """Nap file JSON seed local dung cho demo hoac train offline."""
     with seed_data_path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def load_firestore_data(collection_names: Iterable[str] = DEFAULT_COLLECTIONS) -> dict:
+    """Doc cac collection runtime can thiet cho pipeline recommendation."""
     db = get_firestore_client()
     if db is None:
         raise RuntimeError("Firebase is not configured for ml-backend")
@@ -50,6 +59,7 @@ def load_runtime_data(
     source: str = "auto",
     seed_data_path: Path = DEFAULT_SEED_DATA_PATH,
 ) -> Tuple[dict, str]:
+    """Chon nguon du lieu uu tien va fallback an toan khi can."""
     preferred = (source or "auto").strip().lower()
 
     if preferred in {"firestore", "auto"} and is_firebase_configured():
@@ -63,6 +73,7 @@ def load_runtime_data(
 
 
 def resolve_seed_data_path() -> Path:
+    """Xac dinh duong dan seed snapshot tu env hoac gia tri mac dinh."""
     raw_path = str(os.getenv("SEED_DATA_PATH", "")).strip()
     if raw_path:
         return Path(raw_path)
@@ -70,6 +81,7 @@ def resolve_seed_data_path() -> Path:
 
 
 def filter_data_by_window(data: dict, window_days: int) -> dict:
+    """Loc lai cac ban ghi tuong tac gan day cho train theo cua so thoi gian."""
     if window_days <= 0:
         return data
 

@@ -18,6 +18,12 @@ import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.util.UUID
 
+/**
+ * Điều phối trạng thái giao diện trong QuizViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class QuizViewModel(
     private val repository: CurriculumRepository = CurriculumRepository()
 ) : ViewModel() {
@@ -27,6 +33,11 @@ class QuizViewModel(
 
     private val _eventChannel = Channel<QuizEvent>(Channel.BUFFERED)
     val events = _eventChannel.receiveAsFlow()
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun initWith(quiz: Quiz?, courseId: String) {
         if (quiz != null) {
@@ -48,10 +59,35 @@ class QuizViewModel(
         }
     }
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onTitleChange(value: String) = _uiState.update { it.copy(title = value, titleError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onDescriptionChange(value: String) = _uiState.update { it.copy(description = value) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onDurationChange(value: String) = _uiState.update { it.copy(durationMinutes = value, durationError = null) }
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onPassingScoreChange(value: String) = _uiState.update { it.copy(passingScore = value, passingScoreError = null) }
+
+    /**
+     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun addQuestion() {
         val newQuestion = Question(
@@ -63,9 +99,19 @@ class QuizViewModel(
         _uiState.update { it.copy(questions = it.questions + newQuestion, questionsError = null) }
     }
 
+    /**
+     * Loại bỏ phần tử tương ứng khỏi tập dữ liệu đang quản lý.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun removeQuestion(questionId: String) {
         _uiState.update { it.copy(questions = it.questions.filter { q -> q.id != questionId }) }
     }
+
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun updateQuestionText(questionId: String, text: String) {
         _uiState.update { state ->
@@ -74,6 +120,11 @@ class QuizViewModel(
             })
         }
     }
+
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun updateOptionText(questionId: String, optionIndex: Int, text: String) {
         _uiState.update { state ->
@@ -87,6 +138,11 @@ class QuizViewModel(
         }
     }
 
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun updateCorrectAnswer(questionId: String, index: Int) {
         _uiState.update { state ->
             state.copy(questions = state.questions.map { q ->
@@ -94,6 +150,11 @@ class QuizViewModel(
             })
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun importQuestionsFromFile(inputStream: InputStream, fileName: String?, mimeType: String?) {
         viewModelScope.launch {
@@ -127,6 +188,11 @@ class QuizViewModel(
             }
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun save() {
         if (!validate()) return

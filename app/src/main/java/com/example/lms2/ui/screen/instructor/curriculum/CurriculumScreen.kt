@@ -34,6 +34,12 @@ import com.example.lms2.viewmodel.CurriculumViewModel
 import kotlinx.coroutines.flow.collectLatest
 import org.burnoutcrew.reorderable.*
 
+/**
+ * Màn hình hoặc thành phần CurriculumScreen hỗ trợ luồng làm việc của giảng viên.
+ * File này thường gắn với quản lý khóa học, giáo trình, hồ sơ hoặc thống kê doanh thu và hiệu quả giảng dạy.
+ * Các composable trong đây phối hợp trực tiếp với ViewModel để phản ánh đúng trạng thái nghiệp vụ của giảng viên.
+ */
+
 private data class ItemUiProps(
     val icon: ImageVector,
     val label: String,

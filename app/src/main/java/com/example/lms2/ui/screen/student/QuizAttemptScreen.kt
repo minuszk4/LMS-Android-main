@@ -30,6 +30,12 @@ import com.example.lms2.util.QuizAttemptUiState
 import com.example.lms2.viewmodel.QuizAttemptViewModel
 import kotlinx.coroutines.flow.collectLatest
 
+/**
+ * Màn hình hoặc thành phần QuizAttemptScreen phục vụ trải nghiệm học viên.
+ * File này hiển thị nội dung học tập, tìm kiếm, thanh toán, chatbot hoặc các tương tác chính của người học.
+ * Đây là nhóm file trực tiếp tạo nên luồng sử dụng hằng ngày của người dùng cuối trên ứng dụng Android.
+ */
+
 @Composable
 fun QuizAttemptRoute(
     courseId: String,

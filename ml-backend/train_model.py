@@ -1,3 +1,9 @@
+"""Pipeline huan luyen cho backend recommendation cua LMS.
+
+Module nay chuyen du lieu hanh vi runtime thanh sample co nhan, train model
+baseline, danh gia metric ranking va co the dang ky artifact thanh version moi.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -25,6 +31,7 @@ DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "artifacts" / "recommenda
 
 
 def build_training_set(data: dict) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, Dict[str, float]]]:
+    """Dung ma tran train co giam sat tu du lieu tuong tac runtime."""
     model = RecommendationModel()
     rng = np.random.default_rng(42)
     course_by_id = build_course_index(data)
@@ -88,6 +95,7 @@ def evaluate_ranking_metrics(
     interactions_by_user: Dict[str, Dict[str, float]],
     k_values: Tuple[int, int] = (5, 10),
 ) -> Dict[str, float]:
+    """Danh gia model bang giao thuc holdout ranking don gian."""
     course_by_id = build_course_index(data)
     progress_by_user = build_progress_by_user(data)
     published_courses = list(course_by_id.values())
@@ -159,6 +167,7 @@ def evaluate_ranking_metrics(
 
 
 def build_model_version_id() -> str:
+    """Sinh version ID dua tren thoi gian cho artifact moi."""
     return time.strftime("reco_%Y%m%d_%H%M%S", time.localtime())
 
 
@@ -168,6 +177,7 @@ def train_and_register(
     output_path: Path = DEFAULT_MODEL_PATH,
     activate_if_better: bool = True,
 ) -> Dict:
+    """Train baseline recommender va dang ky artifact ket qua."""
     registry = ModelRegistry()
     runtime_data, source_name = load_runtime_data(
         source=data_source,
@@ -239,6 +249,7 @@ def train_and_register(
 
 
 def main() -> None:
+    """Diem vao CLI cho train thu cong va dang ky artifact."""
     parser = argparse.ArgumentParser(description="Train and register the recommendation model.")
     parser.add_argument(
         "--data-source",

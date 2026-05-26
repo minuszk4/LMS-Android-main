@@ -31,6 +31,12 @@ import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+/**
+ * Triển khai repository PaymentRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class PaymentRepository {
 
     data class MomoLaunchInfo(
@@ -73,6 +79,11 @@ class PaymentRepository {
         val enrollmentCount: Long,
         val cartItemPriceToRemove: Double?
     )
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun checkoutCart(
         userId: String,
@@ -138,6 +149,11 @@ class PaymentRepository {
             ResultState.Error(e.message ?: "Thanh toán thất bại")
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun checkoutCoursesDirect(
         userId: String,
@@ -296,6 +312,11 @@ class PaymentRepository {
         }
     }
 
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun createMomoPaymentForOrder(orderId: String): ResultState<MomoLaunchInfo> {
         Log.d(TAG, "createMomoPaymentForOrder called orderId=$orderId")
         if (orderId.isBlank()) return ResultState.Error("Thiếu mã đơn hàng")
@@ -422,6 +443,11 @@ class PaymentRepository {
             throw lastError ?: IllegalStateException("Không thể kết nối dịch vụ thanh toán")
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun tryAutoConfirmPendingOrder(orderId: String): ResultState<Order> {
         if (orderId.isBlank()) return ResultState.Error("Thiếu mã đơn hàng")

@@ -10,12 +10,23 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository EnrollmentRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class EnrollmentRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
     private val enrollmentsCollection = firestore.collection("enrollments")
     private val enrollmentCachePrefix = "enrollments:user"
     private val recommendationRepository = RecommendationRepository()
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun enrollCourse(userId: String, courseId: String): ResultState<Unit> {
         return try {
@@ -45,6 +56,11 @@ class EnrollmentRepository {
         }
     }
 
+    /**
+     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun isEnrolled(userId: String, courseId: String): ResultState<Boolean> {
         return try {
             val id = "${userId}_${courseId}"
@@ -54,6 +70,11 @@ class EnrollmentRepository {
             ResultState.Error(e.message ?: "Kiểm tra đăng ký thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getEnrolledCourseIds(userId: String): ResultState<List<String>> {
         return try {
@@ -66,6 +87,11 @@ class EnrollmentRepository {
             ResultState.Error(e.message ?: "Lấy danh sách khóa học đã đăng ký thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getUserEnrollments(userId: String): ResultState<List<Enrollment>> {
         return try {
@@ -97,6 +123,11 @@ class EnrollmentRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getAllEnrollments(): ResultState<List<Enrollment>> {
         return try {
             val snapshot = enrollmentsCollection
@@ -108,6 +139,11 @@ class EnrollmentRepository {
             ResultState.Error(e.message ?: "Lấy tất cả đăng ký thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getUserEnrollmentsPage(
         userId: String,

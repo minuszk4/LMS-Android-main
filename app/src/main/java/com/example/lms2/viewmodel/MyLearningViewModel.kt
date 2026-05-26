@@ -16,6 +16,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong MyLearningViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class MyLearningViewModel(
     private val myLearningRepository: MyLearningRepository = MyLearningRepository()
 ) : ViewModel() {
@@ -25,6 +31,11 @@ class MyLearningViewModel(
 
     private val _event = MutableSharedFlow<MyLearningEvent>()
     val event = _event.asSharedFlow()
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadMyLearning(userId: String) {
         if (_uiState.value.isLoading) return
@@ -73,17 +84,37 @@ class MyLearningViewModel(
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun refreshMyLearning(userId: String) {
         loadMyLearning(userId)
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun selectTab(tab: MyLearningTab) {
         _uiState.update { it.copy(selectedTab = tab) }
     }
 
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun loadMoreInProgress(userId: String) {
         loadMore(userId)
     }
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadMoreCompleted(userId: String) {
         loadMore(userId)

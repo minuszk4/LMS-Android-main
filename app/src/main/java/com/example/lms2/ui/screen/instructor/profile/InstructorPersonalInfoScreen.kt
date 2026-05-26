@@ -40,6 +40,12 @@ import com.example.lms2.ui.component.TopBar
 import com.example.lms2.util.InstructorPersonalInfoEvent
 import com.example.lms2.viewmodel.InstructorPersonalInfoViewModel
 
+/**
+ * Màn hình hoặc thành phần InstructorPersonalInfoScreen hỗ trợ luồng làm việc của giảng viên.
+ * File này thường gắn với quản lý khóa học, giáo trình, hồ sơ hoặc thống kê doanh thu và hiệu quả giảng dạy.
+ * Các composable trong đây phối hợp trực tiếp với ViewModel để phản ánh đúng trạng thái nghiệp vụ của giảng viên.
+ */
+
 @Composable
 fun InstructorPersonalInfoRoute(
     instructorId: String,

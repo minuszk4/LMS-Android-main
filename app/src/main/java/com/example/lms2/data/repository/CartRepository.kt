@@ -13,6 +13,12 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository CartRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class CartRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -21,6 +27,11 @@ class CartRepository {
     private val coursesCollection = firestore.collection("courses")
     private val enrollmentsCollection = firestore.collection("enrollments")
     private val cartItemsCachePrefix = "cart-items:user"
+
+    /**
+     * Lấy dữ liệu hiện có hoặc tạo mới nếu tài nguyên chưa tồn tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getOrCreateActiveCart(userId: String): ResultState<Cart> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
@@ -60,6 +71,11 @@ class CartRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getCartItems(userId: String): ResultState<List<CartItem>> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -91,6 +107,11 @@ class CartRepository {
             ResultState.Error(e.message ?: "Lấy danh sách giỏ hàng thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getCartItemsPage(
         userId: String,
@@ -147,6 +168,11 @@ class CartRepository {
         }
     }
 
+    /**
+     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun isCourseInCart(userId: String, courseId: String): ResultState<Boolean> {
         if (userId.isBlank() || courseId.isBlank()) {
             return ResultState.Error("Thiếu thông tin kiểm tra giỏ hàng")
@@ -163,6 +189,11 @@ class CartRepository {
         }
     }
 
+    /**
+     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun isCourseEnrolled(userId: String, courseId: String): ResultState<Boolean> {
         if (userId.isBlank() || courseId.isBlank()) {
             return ResultState.Error("Thiếu thông tin kiểm tra đăng ký")
@@ -178,6 +209,11 @@ class CartRepository {
             ResultState.Error(e.message ?: "Kiểm tra đăng ký khóa học thất bại")
         }
     }
+
+    /**
+     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun addCourseToCart(userId: String, courseId: String): ResultState<CartItem> {
         if (userId.isBlank() || courseId.isBlank()) {
@@ -248,6 +284,11 @@ class CartRepository {
             ResultState.Error(e.message ?: "Thêm vào giỏ hàng thất bại")
         }
     }
+
+    /**
+     * Loại bỏ phần tử tương ứng khỏi tập dữ liệu đang quản lý.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun removeCourseFromCart(userId: String, courseId: String): ResultState<Unit> {
         if (userId.isBlank() || courseId.isBlank()) {

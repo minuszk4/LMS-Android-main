@@ -3,6 +3,9 @@ Cấu hình tham số seed synthetic data cho LMS Android
 Quy định số lượng, tỷ lệ, và các rule sinh dữ liệu
 """
 
+# File nay dong vai tro hop dong du lieu cho pipeline seed. Khi viet bao cao
+# co the dua vao day de giai thich moi profile tao bao nhieu record, va nhung
+# enum/template nao duoc xem la hop le trong moi truong demo LMS.
 # ============================================
 # PROFILE SEED (Chọn một để triển khai)
 # ============================================

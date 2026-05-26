@@ -15,6 +15,12 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong CurriculumViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class CurriculumViewModel(
     private val repository: CurriculumRepository = CurriculumRepository()
 ) : ViewModel() {
@@ -27,11 +33,21 @@ class CurriculumViewModel(
 
     private var currentCourseId: String = ""
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun setCourseId(courseId: String) {
         if (courseId == currentCourseId) return
         currentCourseId = courseId
         loadCurriculum()
     }
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadCurriculum() {
         if (currentCourseId.isBlank()) return
@@ -49,6 +65,11 @@ class CurriculumViewModel(
             }
         }
     }
+
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun deleteContent(item: CurriculumItem) {
         viewModelScope.launch {
@@ -75,6 +96,11 @@ class CurriculumViewModel(
             }
         }
     }
+
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun updateOrder(reorderedItems: List<CurriculumItem>) {
         viewModelScope.launch {

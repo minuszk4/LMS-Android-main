@@ -22,6 +22,12 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 
+/**
+ * Triển khai repository ChatbotRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class ChatbotRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -33,6 +39,11 @@ class ChatbotRepository {
     private val enrollmentRepository = EnrollmentRepository()
     private val cartRepository = CartRepository()
     private val progressRepository = ProgressRepository()
+
+    /**
+     * Lấy dữ liệu hiện có hoặc tạo mới nếu tài nguyên chưa tồn tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getOrCreateActiveSession(
         userId: String,
@@ -61,6 +72,11 @@ class ChatbotRepository {
         }
     }
 
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun createSession(
         userId: String,
         title: String = "Trợ lý học tập"
@@ -85,6 +101,11 @@ class ChatbotRepository {
             ResultState.Error(e.message ?: "Tạo phiên chat thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getUserSessionsPaged(
         userId: String,
@@ -134,6 +155,11 @@ class ChatbotRepository {
             ResultState.Error(e.message ?: "Lấy danh sách phiên chat thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getUserSessions(userId: String): ResultState<List<ChatSession>> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
@@ -328,6 +354,11 @@ class ChatbotRepository {
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun findLatestEmptyActiveSession(userId: String): ResultState<ChatSession?> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -357,6 +388,11 @@ class ChatbotRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getSessionMessages(sessionId: String): ResultState<List<ChatMessage>> {
         if (sessionId.isBlank()) return ResultState.Error("Thiếu thông tin phiên chat")
 
@@ -375,6 +411,11 @@ class ChatbotRepository {
             ResultState.Error(e.message ?: "Lấy lịch sử hội thoại thất bại")
         }
     }
+
+    /**
+     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun sendMessage(
         sessionId: String,
@@ -416,6 +457,11 @@ class ChatbotRepository {
             ResultState.Error(e.message ?: "Gửi tin nhắn thất bại")
         }
     }
+
+    /**
+     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun sendUserMessageAndApiReply(
         sessionId: String,

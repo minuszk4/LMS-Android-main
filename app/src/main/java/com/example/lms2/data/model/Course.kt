@@ -2,6 +2,12 @@ package com.example.lms2.data.model
 
 import com.google.firebase.firestore.PropertyName
 
+/**
+ * Định nghĩa mô hình dữ liệu Course dùng trong ứng dụng LMS Android.
+ * File này khai báo contract dữ liệu được trao đổi giữa Firestore, repository, ViewModel và giao diện Compose.
+ * Việc tách riêng model giúp các luồng nghiệp vụ dùng chung một cấu trúc dữ liệu nhất quán và dễ bảo trì.
+ */
+
 data class Course(
     val id: String = "",
     val title: String = "",
@@ -28,6 +34,9 @@ data class Course(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
+/**
+ * Phân loại độ khó của khóa học để hỗ trợ lọc và hiển thị.
+ */
 enum class CourseLevel {
     BEGINNER, INTERMEDIATE, ADVANCED
 }

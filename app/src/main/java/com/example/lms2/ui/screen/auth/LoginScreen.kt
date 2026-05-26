@@ -1,3 +1,9 @@
+/**
+ * Màn hình hoặc thành phần LoginScreen thuộc luồng xác thực tài khoản.
+ * File này xử lý phần giao diện đăng nhập, đăng ký, quên mật khẩu hoặc kiểm tra phiên làm việc của người dùng.
+ * Đây là điểm đầu quan trọng kết nối người dùng với các luồng nghiệp vụ còn lại của hệ thống.
+ */
+
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.lms2.ui.screen.auth

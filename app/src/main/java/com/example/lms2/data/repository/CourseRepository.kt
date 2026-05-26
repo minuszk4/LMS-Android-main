@@ -12,6 +12,12 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository CourseRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class CourseRepository {
 
     companion object {
@@ -33,6 +39,11 @@ class CourseRepository {
     private val notificationRepository = NotificationRepository()
     private val courseUpdateNotificationCooldownMs = 30 * 60 * 1000L
 
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun createCourse(course: Course): ResultState<String> {
         return try {
             val docRef = coursesCollection.document()
@@ -49,6 +60,11 @@ class CourseRepository {
             ResultState.Error(e.message ?: "Tạo khóa học thất bại")
         }
     }
+
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun updateCourse(course: Course): ResultState<Unit> {
         return try {
@@ -106,6 +122,11 @@ class CourseRepository {
         }
     }
 
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun deleteCourse(courseId: String): ResultState<Unit> {
         return try {
             val refsToDelete = mutableListOf<DocumentReference>()
@@ -150,6 +171,11 @@ class CourseRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getCourseById(courseId: String): ResultState<Course> {
         return try {
             val snapshot = coursesCollection
@@ -166,6 +192,11 @@ class CourseRepository {
             ResultState.Error(e.message ?: "Lấy thông tin khóa học thất bại")
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun searchCourses(query: String): ResultState<List<Course>> {
         return try {
@@ -194,6 +225,11 @@ class CourseRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getCoursesByInstructor(instructorId: String): ResultState<List<Course>> {
         return try {
             val snapshot = coursesCollection
@@ -207,6 +243,11 @@ class CourseRepository {
             ResultState.Error(e.message ?: "Lấy danh sách khóa học của giảng viên thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getAllCoursesForAdmin(): ResultState<List<Course>> {
         return try {
@@ -236,6 +277,11 @@ class CourseRepository {
             ResultState.Error(e.message ?: "Không tải được danh sách khóa học")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getAllCoursesForAdminPage(
         pageRequest: PageRequest = PageRequest()
@@ -284,6 +330,11 @@ class CourseRepository {
         }
     }
 
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun getAllPublishedCourses(): ResultState<List<Course>> {
         return try {
             val courses = mutableListOf<Course>()
@@ -312,6 +363,11 @@ class CourseRepository {
             ResultState.Error(e.message ?: "Lấy danh sách khóa học thất bại")
         }
     }
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getAllPublishedCoursesPage(
         pageRequest: PageRequest = PageRequest()
@@ -369,6 +425,11 @@ class CourseRepository {
         return "$PUBLISHED_COURSE_CACHE_PREFIX:${pageRequest.normalizedPageSize}:${pageRequest.cursor ?: "first"}"
     }
 
+    /**
+     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
+
     suspend fun updatePublishStatus(courseId: String, isPublished: Boolean): ResultState<Unit> {
         return try {
             coursesCollection
@@ -388,6 +449,11 @@ class CourseRepository {
             ResultState.Error(e.message ?: "Cập nhật trạng thái khóa học thất bại")
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun incrementEnrollment(courseId: String): ResultState<Unit> {
         return try {

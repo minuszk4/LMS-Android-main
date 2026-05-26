@@ -4,6 +4,9 @@ Chạy: python seed_data.py --profile standard --dry-run
 """
 
 import argparse
+# Module nay la script sinh du lieu mau chuan cho moi truong demo LMS.
+# Du lieu tao ra duoc dung dong thoi cho hoc tap, thanh toan, chatbot,
+# recommendation va cac phan mo ta ky thuat trong bao cao.
 import random
 import json
 import sys
@@ -94,6 +97,8 @@ def build_course_thumbnail_url(course_id: str) -> str:
 # ============================================
 
 class SeedDataBuilder:
+    """Bo sinh du lieu Firestore nhat quan trong bo nho."""
+
     def __init__(self, profile: str, dry_run: bool = False):
         self.profile = SEED_PROFILES.get(profile, SEED_PROFILES["standard"])
         self.dry_run = dry_run
@@ -121,6 +126,8 @@ class SeedDataBuilder:
         random.seed(RANDOM_SEED)
 
     def connect_firestore(self, credentials_path: str):
+        # Dry-run giup script van dung duoc de preview va kiem tra offline.
+        # Chi khi upload that moi can khoi tao Firebase Admin SDK.
         """Kết nối Firestore"""
         if self.dry_run:
             print(f"📌 DRY RUN: Không sẽ ghi vào Firestore")
@@ -140,6 +147,8 @@ class SeedDataBuilder:
             sys.exit(1)
 
     def seed_users(self):
+        # Tao dong thoi collection users va instructors de cac man admin,
+        # payout va recommendation co du du lieu nghiep vu de su dung.
         """Sinh users (mix student + instructor)"""
         num_instructors = self.profile["num_instructors"]
         num_students = self.profile["num_students"]
@@ -200,6 +209,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {num_instructors} instructors + {num_students} students")
 
     def seed_categories(self):
+        # Categories la du lieu danh muc nen cho tao khoa hoc, bo loc
+        # va feature engineering cua recommendation.
         """Sinh categories"""
         num = self.profile["num_categories"]
         self.data["categories"] = [
@@ -209,6 +220,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {num} categories")
 
     def seed_courses(self):
+        # Moi course luon gan voi mot instructor va mot category de cac
+        # buoc seed phia sau giu duoc tinh nhat quan tham chieu.
         """Sinh courses"""
         num_instructors = self.profile["num_instructors"]
         num_per_instructor = self.profile["num_courses_per_instructor"]
@@ -246,6 +259,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {len(self.data['courses'])} courses")
 
     def seed_curriculum(self):
+        # Lessons va quizzes phai sinh sau courses vi phu thuoc courseId
+        # va dong thoi cap nhat cac thong so tong hop nhu lessonCount.
         """Sinh lessons và quizzes"""
         for course in self.data["courses"]:
             course_id = course["id"]
@@ -306,6 +321,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {len(self.data['lessons'])} lessons + {len(self.data['quizzes'])} quizzes")
 
     def seed_enrollments_progress(self):
+        # Tao ca progress cap khoa hoc va progress cap bai hoc de cac man
+        # hoc vien va thong ke co the hien thi trang thai thuc te.
         """Sinh enrollments và progress"""
         students = [u for u in self.data["users"] if u["role"] == "STUDENT"]
         courses = self.data["courses"]
@@ -362,6 +379,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {len(self.data['enrollments'])} enrollments + progress")
 
     def seed_reviews(self):
+        # Chi tao review cho cac truong hop da enroll de giu dung rule:
+        # danh gia phai den tu hoc vien cua khoa hoc.
         """Sinh reviews"""
         students = [u for u in self.data["users"] if u["role"] == "STUDENT"]
         enrollments = self.data["enrollments"]
@@ -392,6 +411,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {len(self.data['reviews'])} reviews")
 
     def seed_quiz_progress(self):
+        # Quiz progress quan trong cho ca lich su hoc tap va feature ML vi
+        # no the hien muc do tuong tac voi danh gia, khong chi la enrollment.
         """Sinh quizProgress cho dữ liệu học tập."""
         enrollments = self.data["enrollments"]
         quizzes_by_course = {}
@@ -426,6 +447,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {len(self.data['quizProgress'])} quizProgress")
 
     def seed_carts_orders(self):
+        # Day la nhom du lieu duoc dung truc tiep boi luong checkout Android
+        # va backend webhook MoMo de xac nhan giao dich thanh cong.
         """Sinh carts, cartItems, orders, orderItems"""
         students = [u for u in self.data["users"] if u["role"] == "STUDENT"]
         courses = self.data["courses"]
@@ -501,6 +524,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {len(self.data['carts'])} carts + {len(self.data['cartItems'])} cartItems + {len(self.data['orders'])} orders")
 
     def seed_chat_data(self):
+        # Chat history o muc nhe la du de render UI va test query session
+        # ma khong can transcript thuc te tu moi truong production.
         """Sinh chatSessions và chatMessages cơ bản cho chatbot."""
         students = [u for u in self.data["users"] if u["role"] == "STUDENT"]
 
@@ -545,6 +570,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {len(self.data['chatSessions'])} chatSessions + {len(self.data['chatMessages'])} chatMessages")
 
     def seed_notifications(self):
+        # Notifications giup demo cac luong thong bao va unread state
+        # ma khong can phu thuoc vao he thong push thuc te.
         """Sinh notifications"""
         students = [u for u in self.data["users"] if u["role"] == "STUDENT"]
         
@@ -564,6 +591,8 @@ class SeedDataBuilder:
         print(f"✅ Tạo {len(self.data['notifications'])} notifications")
 
     def build_all(self):
+        # Thu tu goi cac buoc seed rat quan trong vi collection sinh sau
+        # se tham chieu den ID duoc tao o collection sinh truoc.
         """Sinh tất cả dữ liệu"""
         print(f"\n🚀 Bắt đầu seed dữ liệu với profile: {self.profile}")
         self.seed_users()
@@ -579,6 +608,8 @@ class SeedDataBuilder:
         print(f"\n✅ Hoàn thành xây dựng dữ liệu")
 
     def save_to_json(self, filename: str = "seed_data.json"):
+        # Luu ra JSON de de review, de version hoa va tai su dung cho
+        # script validate hoac cho ML backend doc lai.
         """Lưu dữ liệu ra JSON"""
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(self.data, f, ensure_ascii=False, indent=2)
@@ -592,6 +623,8 @@ class SeedDataBuilder:
         batch_size: int = 200,
         sleep_ms: int = 400,
     ):
+        # Upload duoc han che toc do co chu y vi Firestore demo/staging thuong
+        # co quota thap, neu ghi qua nhanh se de gap loi vuot nguong.
         """Upload lên Firestore với cơ chế tối ưu cho free tier."""
         if self.dry_run or not self.db:
             print("📌 Bỏ qua upload (dry-run hoặc chưa kết nối)")
@@ -664,6 +697,8 @@ class SeedDataBuilder:
             collection_written = 0
 
             # Tách dữ liệu thành các batch
+            # Chia thanh nhieu batch nho de giam dot bien write va de retry
+            # re hon neu Firestore tra ve loi quota.
             for i in range(0, len(docs_to_upload), batch_size):
                 batch = self.db.batch()
                 batch_docs = docs_to_upload[i:i + batch_size]
@@ -673,6 +708,8 @@ class SeedDataBuilder:
                     batch.set(collection_ref.document(doc_id), doc)
                 
                 # Retry logic với exponential backoff
+                # Exponential backoff giup moi truong dung chung hoac demo
+                # co thoi gian hoi phuc khi bi throttle tam thoi.
                 max_retries = 5
                 retry_delay = 2
                 for attempt in range(max_retries):
@@ -713,6 +750,8 @@ class SeedDataBuilder:
 # ============================================
 
 def parse_args():
+    # CLI duoc thiet ke day du de nguoi doc bao cao co the tai hien duoc
+    # ca preview offline, upload tung phan, hoac seed an toan theo quota.
     parser = argparse.ArgumentParser(description="Seed LMS Firestore")
     parser.add_argument("--profile", default="standard", 
                        choices=list(SEED_PROFILES.keys()),

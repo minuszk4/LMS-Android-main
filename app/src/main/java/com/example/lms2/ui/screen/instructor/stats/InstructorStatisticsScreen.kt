@@ -61,6 +61,12 @@ import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.max
 
+/**
+ * Màn hình hoặc thành phần InstructorStatisticsScreen hỗ trợ luồng làm việc của giảng viên.
+ * File này thường gắn với quản lý khóa học, giáo trình, hồ sơ hoặc thống kê doanh thu và hiệu quả giảng dạy.
+ * Các composable trong đây phối hợp trực tiếp với ViewModel để phản ánh đúng trạng thái nghiệp vụ của giảng viên.
+ */
+
 private val StatsBackground = Color(0xFFF8FAFC)
 private val StatsCard = Color.White
 private val StatsBorder = Color(0xFFE2E8F0)

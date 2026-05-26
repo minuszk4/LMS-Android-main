@@ -27,6 +27,12 @@ import com.example.lms2.util.CourseEvent
 import com.example.lms2.viewmodel.CourseViewModel
 
 
+/**
+ * Màn hình hoặc thành phần MyCoursesScreen hỗ trợ luồng làm việc của giảng viên.
+ * File này thường gắn với quản lý khóa học, giáo trình, hồ sơ hoặc thống kê doanh thu và hiệu quả giảng dạy.
+ * Các composable trong đây phối hợp trực tiếp với ViewModel để phản ánh đúng trạng thái nghiệp vụ của giảng viên.
+ */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyCoursesScreen(

@@ -15,6 +15,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong ChatbotViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class ChatbotViewModel(
     private val repository: OpenRouterChatbotRepository = OpenRouterChatbotRepository()
 ) : ViewModel() {
@@ -28,6 +34,11 @@ class ChatbotViewModel(
     private var lastUserId: String = ""
     private var currentUserId: String = ""
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun init(userId: String) {
         if (userId.isBlank()) return
         currentUserId = userId
@@ -35,11 +46,21 @@ class ChatbotViewModel(
         loadSessionsAndMessages(userId)
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun refresh(userId: String) {
         if (userId.isBlank()) return
         currentUserId = userId
         loadSessionsAndMessages(userId)
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun selectSession(sessionId: String) {
         if (sessionId.isBlank()) return
@@ -48,6 +69,11 @@ class ChatbotViewModel(
         val target = _uiState.value.sessions.firstOrNull { it.id == sessionId } ?: return
         loadMessagesForSession(target)
     }
+
+    /**
+     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun createNewSession(userId: String) {
         if (userId.isBlank()) return
@@ -94,6 +120,11 @@ class ChatbotViewModel(
             }
         }
     }
+
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun deleteSession(sessionId: String) {
         if (sessionId.isBlank()) return
@@ -169,6 +200,11 @@ class ChatbotViewModel(
             }
         }
     }
+
+    /**
+     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun sendMessage(content: String) {
         val trimmed = content.trim()

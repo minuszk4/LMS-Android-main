@@ -48,6 +48,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.lms2.viewmodel.AdminManagementEvent
 import com.example.lms2.viewmodel.AdminManagementViewModel
 
+/**
+ * Màn hình hoặc thành phần AdminHomeScreen phục vụ nghiệp vụ quản trị hệ thống.
+ * File này hiển thị dữ liệu quản trị, trạng thái duyệt hoặc các thao tác vận hành do admin thực hiện.
+ * Mô tả rõ vai trò màn hình giúp việc viết tài liệu kỹ thuật và phân tích use case dễ dàng hơn.
+ */
+
 private val HomeBackground = Color(0xFFF8FAFC)
 private val CardBackground = Color(0xFFFFFFFF)
 private val BorderColor = Color(0xFFE2E8F0)

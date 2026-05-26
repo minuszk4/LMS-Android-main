@@ -52,6 +52,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Màn hình hoặc thành phần CourseAnalyticsScreen hỗ trợ luồng làm việc của giảng viên.
+ * File này thường gắn với quản lý khóa học, giáo trình, hồ sơ hoặc thống kê doanh thu và hiệu quả giảng dạy.
+ * Các composable trong đây phối hợp trực tiếp với ViewModel để phản ánh đúng trạng thái nghiệp vụ của giảng viên.
+ */
+
 private val AnalyticsBg = Color(0xFFF8FAFC)
 private val AnalyticsCard = Color.White
 private val AnalyticsBorder = Color(0xFFE2E8F0)

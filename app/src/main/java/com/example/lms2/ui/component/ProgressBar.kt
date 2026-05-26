@@ -16,6 +16,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+/**
+ * Cung cấp composable tái sử dụng ProgressBar cho giao diện LMS Android.
+ * Thành phần trong file này được dùng chung ở nhiều màn hình để giữ trải nghiệm hiển thị đồng nhất.
+ * Tách riêng component giúp giảm lặp code và dễ bảo trì hơn khi thay đổi thiết kế.
+ */
+
 @Composable
 fun ProgressBar(
     progress: Float,

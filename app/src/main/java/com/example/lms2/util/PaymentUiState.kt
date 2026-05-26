@@ -4,10 +4,20 @@ import com.example.lms2.data.model.CartItem
 import com.example.lms2.data.model.PaymentMethod
 import com.example.lms2.data.model.Order
 
+/**
+ * Mô tả trạng thái giao diện của luồng Payment.
+ * Đối tượng này gom dữ liệu hiển thị, cờ tải, lỗi kiểm tra và các trạng thái tạm mà Compose cần quan sát.
+ * Việc gom toàn bộ state vào một nơi giúp màn hình render nhất quán và dễ kiểm thử hơn.
+ */
+
 enum class CheckoutSource {
     CART,
     DIRECT
 }
+
+/**
+ * Khai báo PaymentUiState trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ */
 
 data class PaymentUiState(
     val isLoading: Boolean = false,

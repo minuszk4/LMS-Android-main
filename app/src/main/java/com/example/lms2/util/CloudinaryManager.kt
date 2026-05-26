@@ -16,6 +16,12 @@ import java.io.File
 import java.io.FileOutputStream
 import kotlin.coroutines.resume
 
+/**
+ * Cung cấp tiện ích hoặc kiểu hỗ trợ CloudinaryManager cho ứng dụng LMS Android.
+ * File này được dùng lại ở nhiều nơi để tránh lặp logic và chuẩn hóa cách xử lý dữ liệu hoặc trạng thái.
+ * Những helper như thế này giúp mã nguồn gọn hơn và dễ tái sử dụng khi mở rộng tính năng.
+ */
+
 object CloudinaryManager {
 
     private var isInitialized = false

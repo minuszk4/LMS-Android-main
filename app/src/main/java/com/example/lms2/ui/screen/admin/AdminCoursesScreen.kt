@@ -44,6 +44,12 @@ import com.example.lms2.data.model.Course
 import com.example.lms2.viewmodel.AdminManagementEvent
 import com.example.lms2.viewmodel.AdminManagementViewModel
 
+/**
+ * Màn hình hoặc thành phần AdminCoursesScreen phục vụ nghiệp vụ quản trị hệ thống.
+ * File này hiển thị dữ liệu quản trị, trạng thái duyệt hoặc các thao tác vận hành do admin thực hiện.
+ * Mô tả rõ vai trò màn hình giúp việc viết tài liệu kỹ thuật và phân tích use case dễ dàng hơn.
+ */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminCoursesScreen(

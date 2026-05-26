@@ -22,6 +22,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong QuizAttemptViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class QuizAttemptViewModel(
     private val quizAttemptRepository: QuizAttemptRepository = QuizAttemptRepository(),
     private val progressRepository: ProgressRepository = ProgressRepository(),
@@ -40,6 +46,11 @@ class QuizAttemptViewModel(
     // ─────────────────────────────────────────
     // INIT - Load Quiz Data
     // ─────────────────────────────────────────
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadQuiz(
         userId: String,
@@ -219,10 +230,20 @@ class QuizAttemptViewModel(
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun pauseTimer() {
         timerJob?.cancel()
         _uiState.update { it.copy(isTimerRunning = false) }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun resumeTimer() {
         if (_uiState.value.remainingSeconds > 0) {
@@ -234,12 +255,22 @@ class QuizAttemptViewModel(
     // NAVIGATION
     // ─────────────────────────────────────────
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun nextQuestion() {
         val state = _uiState.value
         if (state.currentQuestionIndex < state.questions.size - 1) {
             _uiState.update { it.copy(currentQuestionIndex = it.currentQuestionIndex + 1) }
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun previousQuestion() {
         if (_uiState.value.currentQuestionIndex > 0) {
@@ -252,6 +283,11 @@ class QuizAttemptViewModel(
     // ANSWER SELECTION
     // ─────────────────────────────────────────
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun selectAnswer(questionIndex: Int, answerIndex: Int) {
         _uiState.update { state ->
             val updatedAnswers = state.selectedAnswers.toMutableMap()
@@ -263,6 +299,11 @@ class QuizAttemptViewModel(
     // ─────────────────────────────────────────
     // SUBMIT QUIZ
     // ─────────────────────────────────────────
+
+    /**
+     * Gửi dữ liệu biểu mẫu hoặc yêu cầu nghiệp vụ để hệ thống tiếp nhận.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun submitQuiz() {
         val state = _uiState.value
@@ -350,6 +391,11 @@ class QuizAttemptViewModel(
     // RETAKE QUIZ
     // ─────────────────────────────────────────
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun retakeQuiz() {
         pauseTimer()
 
@@ -389,6 +435,11 @@ class QuizAttemptViewModel(
 
         return correctCount
     }
+
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     override fun onCleared() {
         super.onCleared()

@@ -32,6 +32,12 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import com.example.lms2.ui.navigation.Routes
 
+/**
+ * Cung cấp composable tái sử dụng AdminBottomBar cho giao diện LMS Android.
+ * Thành phần trong file này được dùng chung ở nhiều màn hình để giữ trải nghiệm hiển thị đồng nhất.
+ * Tách riêng component giúp giảm lặp code và dễ bảo trì hơn khi thay đổi thiết kế.
+ */
+
 private data class AdminNavItem(
     val route: String,
     val title: String,

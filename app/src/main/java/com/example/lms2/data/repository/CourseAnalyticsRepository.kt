@@ -9,6 +9,12 @@ import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
+/**
+ * Triển khai repository CourseAnalyticsRepository cho ứng dụng LMS Android.
+ * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
+ * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ */
+
 class CourseAnalyticsRepository(
     private val courseRepository: CourseRepository = CourseRepository(),
     private val reviewRepository: ReviewRepository = ReviewRepository()
@@ -20,6 +26,11 @@ class CourseAnalyticsRepository(
     private val orderItemsCollection = firestore.collection("orderItems")
     private val progressCollection = firestore.collection("progress")
     private val quizProgressCollection = firestore.collection("quizProgress")
+
+    /**
+     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
+     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     */
 
     suspend fun getCourseAnalytics(courseId: String): ResultState<CourseAnalyticsData> {
         if (courseId.isBlank()) return ResultState.Error("Thiếu mã khóa học")

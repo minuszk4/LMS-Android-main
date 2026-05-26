@@ -24,6 +24,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Điều phối trạng thái giao diện trong CourseDetailViewModel.
+ * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
+ * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ */
+
 class CourseDetailViewModel(
     private val courseRepository: CourseRepository = CourseRepository(),
     private val cartRepository: CartRepository = CartRepository(),
@@ -41,6 +47,11 @@ class CourseDetailViewModel(
 
     private val _event = MutableSharedFlow<CourseDetailEvent>()
     val event = _event.asSharedFlow()
+
+    /**
+     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun loadCourseDetail(courseId: String, userId: String) {
         if (_uiState.value.course?.id == courseId) {
@@ -104,6 +115,11 @@ class CourseDetailViewModel(
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun refreshReviews(courseId: String, userId: String, showLoading: Boolean = false) {
         viewModelScope.launch {
             if (showLoading) {
@@ -140,6 +156,11 @@ class CourseDetailViewModel(
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun refreshProgressOnly(courseId: String, userId: String) {
         viewModelScope.launch {
             val result = progressRepository.getProgress(userId, courseId)
@@ -148,6 +169,11 @@ class CourseDetailViewModel(
             }
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun refreshCartStatus(userId: String, courseId: String) {
         if (userId.isBlank() || courseId.isBlank()) return
@@ -164,6 +190,11 @@ class CourseDetailViewModel(
             }
         }
     }
+
+    /**
+     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun toggleCourseInCart(userId: String, courseId: String) {
         if (userId.isBlank() || courseId.isBlank()) return
@@ -216,6 +247,11 @@ class CourseDetailViewModel(
         }
     }
 
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun buyNowCourse(userId: String, courseId: String) {
         if (userId.isBlank() || courseId.isBlank()) return
 
@@ -235,13 +271,28 @@ class CourseDetailViewModel(
         }
     }
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onReviewRatingChanged(rating: Int) {
         _uiState.update { it.copy(reviewDraftRating = rating.coerceIn(1, 5)) }
     }
 
+    /**
+     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun onReviewContentChanged(content: String) {
         _uiState.update { it.copy(reviewDraftContent = content) }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun startEditMyReview() {
         val myReview = _uiState.value.myReview ?: return
@@ -254,6 +305,11 @@ class CourseDetailViewModel(
         }
     }
 
+    /**
+     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun cancelEditReview() {
         val myReview = _uiState.value.myReview
         _uiState.update {
@@ -264,6 +320,11 @@ class CourseDetailViewModel(
             )
         }
     }
+
+    /**
+     * Gửi dữ liệu biểu mẫu hoặc yêu cầu nghiệp vụ để hệ thống tiếp nhận.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun submitReview(courseId: String, userId: String) {
         if (_uiState.value.isSubmittingReview || _uiState.value.isDeletingReview) return
@@ -336,6 +397,11 @@ class CourseDetailViewModel(
         }
     }
 
+    /**
+     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
+
     fun deleteMyReview(courseId: String, userId: String) {
         if (_uiState.value.isDeletingReview || _uiState.value.isSubmittingReview) return
         if (_uiState.value.myReview == null) return
@@ -373,6 +439,11 @@ class CourseDetailViewModel(
             }
         }
     }
+
+    /**
+     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
+     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     */
 
     fun enrollCourse(userId: String, courseId: String) {
         if (_uiState.value.isEnrolling) return

@@ -2,6 +2,12 @@ package com.example.lms2.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+/**
+ * Khai báo theme hoặc token giao diện trong Color.
+ * File này chứa màu sắc, typography hoặc cấu hình hiển thị dùng chung cho toàn bộ ứng dụng Compose.
+ * Việc tách riêng lớp theme giúp quản lý diện mạo tổng thể nhất quán và tập trung.
+ */
+
 val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)
 val Pink80 = Color(0xFFEFB8C8)
