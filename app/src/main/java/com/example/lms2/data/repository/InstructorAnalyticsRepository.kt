@@ -37,8 +37,8 @@ class InstructorAnalyticsRepository {
     private val quizProgressCollection = firestore.collection("quizProgress")
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tổng hợp dashboard thống kê của giảng viên từ nhiều collection Firestore.
+     * Hàm tính KPI, top khóa học, xu hướng ghi danh và xu hướng doanh thu theo khoảng thời gian được chọn.
      */
 
     suspend fun getInstructorAnalytics(
@@ -144,6 +144,10 @@ class InstructorAnalyticsRepository {
         }
     }
 
+    /**
+     * Lấy danh sách ghi danh của các khóa học thuộc giảng viên.
+     * Firestore giới hạn `whereIn` tối đa 10 phần tử nên danh sách courseId được chia thành nhiều nhóm nhỏ.
+     */
     private suspend fun fetchEnrollments(courseIds: List<String>, startAt: Long?): List<Enrollment> {
         if (courseIds.isEmpty()) return emptyList()
         val all = mutableListOf<Enrollment>()
@@ -159,6 +163,10 @@ class InstructorAnalyticsRepository {
         return all
     }
 
+    /**
+     * Lấy các dòng đơn hàng thuộc khóa học của giảng viên và chỉ giữ order đã thanh toán thành công.
+     * Bước lọc theo `orders.paymentStatus = SUCCESS` giúp doanh thu thống kê không tính đơn đang chờ hoặc thất bại.
+     */
     private suspend fun fetchOrderItems(courseIds: List<String>, startAt: Long?): List<OrderItem> {
         if (courseIds.isEmpty()) return emptyList()
         val all = mutableListOf<OrderItem>()
@@ -190,6 +198,10 @@ class InstructorAnalyticsRepository {
         return all.filter { successfulOrderIds.contains(it.orderId) }
     }
 
+    /**
+     * Lấy tiến độ học của học viên trong các khóa học của giảng viên.
+     * Dữ liệu này được dùng để tính tỷ lệ hoàn thành khóa học.
+     */
     private suspend fun fetchProgresses(courseIds: List<String>, startAt: Long?): List<Progress> {
         if (courseIds.isEmpty()) return emptyList()
         val all = mutableListOf<Progress>()
@@ -205,6 +217,10 @@ class InstructorAnalyticsRepository {
         return all
     }
 
+    /**
+     * Lấy kết quả quiz của học viên trong các khóa học của giảng viên.
+     * Dữ liệu này được dùng để tính tỷ lệ vượt qua quiz.
+     */
     private suspend fun fetchQuizProgresses(courseIds: List<String>, startAt: Long?): List<QuizProgress> {
         if (courseIds.isEmpty()) return emptyList()
         val all = mutableListOf<QuizProgress>()
@@ -220,6 +236,10 @@ class InstructorAnalyticsRepository {
         return all
     }
 
+    /**
+     * Gom các mốc thời gian thành dữ liệu biểu đồ dạng đếm.
+     * Ví dụ: số lượt ghi danh theo từng ngày/tuần/tháng tùy khoảng thời gian.
+     */
     private fun buildCountTrend(
         points: List<Long>,
         range: InstructorTimeRange,
@@ -239,6 +259,10 @@ class InstructorAnalyticsRepository {
         return buckets.map { AnalyticsTrendPoint(it.label, it.value) }
     }
 
+    /**
+     * Gom các cặp thời gian-số tiền thành dữ liệu biểu đồ doanh thu.
+     * Mỗi order item được cộng vào bucket thời gian tương ứng.
+     */
     private fun buildAmountTrend(
         points: List<Pair<Long, Double>>,
         range: InstructorTimeRange,
@@ -264,6 +288,10 @@ class InstructorAnalyticsRepository {
         val value: Double = 0.0
     )
 
+    /**
+     * Tạo các bucket thời gian theo range được chọn để phục vụ vẽ biểu đồ.
+     * Các bucket luôn được sắp xếp từ cũ đến mới.
+     */
     private fun createBuckets(
         range: InstructorTimeRange,
         now: Long
@@ -314,6 +342,9 @@ class InstructorAnalyticsRepository {
         }
     }
 
+    /**
+     * Xác định timestamp thuộc bucket nào trong danh sách mốc bắt đầu.
+     */
     private fun bucketIndex(timestamp: Long, starts: List<Long>): Int {
         if (starts.isEmpty()) return -1
         if (starts.size == 1) return 0

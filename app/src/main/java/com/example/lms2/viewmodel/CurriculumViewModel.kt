@@ -34,8 +34,8 @@ class CurriculumViewModel(
     private var currentCourseId: String = ""
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Thiết lập khóa học hiện tại mà màn hình curriculum đang quản lý.
+     * Nếu `courseId` thay đổi, ViewModel sẽ tải lại danh sách lesson/quiz của khóa học đó.
      */
 
     fun setCourseId(courseId: String) {
@@ -45,8 +45,8 @@ class CurriculumViewModel(
     }
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải toàn bộ nội dung curriculum của khóa học hiện tại.
+     * Dữ liệu trả về gồm cả bài học và quiz, đã được repository sắp xếp theo `orderIndex`.
      */
 
     fun loadCurriculum() {
@@ -67,8 +67,8 @@ class CurriculumViewModel(
     }
 
     /**
-     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa một mục trong curriculum, có thể là bài học hoặc quiz.
+     * UI được cập nhật trước bằng optimistic update; nếu thao tác Firestore thất bại thì tải lại dữ liệu để khôi phục.
      */
 
     fun deleteContent(item: CurriculumItem) {
@@ -98,8 +98,8 @@ class CurriculumViewModel(
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật thứ tự lesson/quiz sau khi giảng viên kéo thả curriculum.
+     * Thứ tự mới được ghi xuống Firestore thông qua `orderIndex` của từng mục.
      */
 
     fun updateOrder(reorderedItems: List<CurriculumItem>) {

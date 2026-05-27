@@ -35,8 +35,8 @@ class LessonViewModel(
     val events = _eventChannel.receiveAsFlow()
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Khởi tạo form bài học ở chế độ tạo mới hoặc chỉnh sửa.
+     * Khi `lesson` khác null, dữ liệu cũ được nạp vào form để giảng viên cập nhật.
      */
 
     fun initWith(lesson: Lesson?, courseId: String) {
@@ -58,33 +58,29 @@ class LessonViewModel(
     }
 
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật tiêu đề bài học và xóa lỗi validation của trường tiêu đề.
      */
 
     fun onTitleChange(value: String) = _uiState.update { it.copy(title = value, titleError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật mô tả bài học và xóa lỗi validation của trường mô tả.
      */
 
     fun onDescriptionChange(value: String) = _uiState.update { it.copy(description = value, descriptionError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật đường dẫn video bài giảng và xóa lỗi validation của trường video.
      */
 
     fun onVideoUrlChange(value: String) = _uiState.update { it.copy(videoUrl = value, videoUrlError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật thời lượng bài học và xóa lỗi validation của trường thời lượng.
      */
 
     fun onDurationChange(value: String) = _uiState.update { it.copy(duration = value, durationError = null) }
 
     /**
-     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Thêm tệp đính kèm vào danh sách tạm của form bài học.
+     * File mới chỉ lưu local URI trong state và sẽ được upload lên Cloudinary khi bấm lưu.
      */
 
     fun addAttachment(uri: Uri, fileName: String, fileSize: String, mimeType: String) {
@@ -98,8 +94,7 @@ class LessonViewModel(
     }
 
     /**
-     * Loại bỏ phần tử tương ứng khỏi tập dữ liệu đang quản lý.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa một tệp đính kèm khỏi form trước khi lưu bài học.
      */
 
     fun removeAttachment(attachment: Attachment) {
@@ -107,8 +102,8 @@ class LessonViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Lưu bài học sau khi validate dữ liệu.
+     * Các tệp mới có URI `content://` sẽ được upload lên Cloudinary trước khi lesson được ghi xuống Firestore.
      */
 
     fun save() {

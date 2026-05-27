@@ -33,8 +33,8 @@ class InstructorPersonalInfoViewModel(
     private var loadedInstructorId: String = ""
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Khởi tạo màn thông tin cá nhân giảng viên.
+     * Nếu đã tải hồ sơ của cùng giảng viên, ViewModel giữ lại dữ liệu hiện có.
      */
 
     fun init(instructorId: String) {
@@ -44,8 +44,7 @@ class InstructorPersonalInfoViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải lại hồ sơ giảng viên từ Firestore.
      */
 
     fun refresh(instructorId: String) {
@@ -54,8 +53,8 @@ class InstructorPersonalInfoViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Lưu thông tin tài khoản ngân hàng của giảng viên.
+     * Dữ liệu này được dùng để kiểm tra điều kiện tạo khóa học và phục vụ payout sau thanh toán.
      */
 
     fun saveBankInfo(
@@ -98,8 +97,7 @@ class InstructorPersonalInfoViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Lưu hồ sơ chuyên môn của giảng viên gồm chuyên môn, bằng cấp và số năm kinh nghiệm.
      */
 
     fun saveInstructorProfile(

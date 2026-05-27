@@ -35,8 +35,8 @@ class QuizViewModel(
     val events = _eventChannel.receiveAsFlow()
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Khởi tạo form quiz ở chế độ tạo mới hoặc chỉnh sửa.
+     * Khi tạo mới, ViewModel tự thêm một câu hỏi rỗng để giảng viên nhập nhanh hơn.
      */
 
     fun initWith(quiz: Quiz?, courseId: String) {
@@ -60,33 +60,28 @@ class QuizViewModel(
     }
 
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật tiêu đề quiz và xóa lỗi validation của trường tiêu đề.
      */
 
     fun onTitleChange(value: String) = _uiState.update { it.copy(title = value, titleError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật mô tả quiz trong form.
      */
 
     fun onDescriptionChange(value: String) = _uiState.update { it.copy(description = value) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật thời gian làm bài và xóa lỗi validation của trường thời gian.
      */
 
     fun onDurationChange(value: String) = _uiState.update { it.copy(durationMinutes = value, durationError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật điểm đạt quiz và xóa lỗi validation của trường điểm đạt.
      */
 
     fun onPassingScoreChange(value: String) = _uiState.update { it.copy(passingScore = value, passingScoreError = null) }
 
     /**
-     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Thêm một câu hỏi trắc nghiệm mới với 4 lựa chọn A/B/C/D.
      */
 
     fun addQuestion() {
@@ -100,8 +95,7 @@ class QuizViewModel(
     }
 
     /**
-     * Loại bỏ phần tử tương ứng khỏi tập dữ liệu đang quản lý.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa câu hỏi khỏi danh sách câu hỏi của quiz.
      */
 
     fun removeQuestion(questionId: String) {
@@ -109,8 +103,7 @@ class QuizViewModel(
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật nội dung câu hỏi theo `questionId`.
      */
 
     fun updateQuestionText(questionId: String, text: String) {
@@ -122,8 +115,7 @@ class QuizViewModel(
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Cập nhật nội dung một đáp án của câu hỏi theo vị trí A/B/C/D.
      */
 
     fun updateOptionText(questionId: String, optionIndex: Int, text: String) {
@@ -139,8 +131,7 @@ class QuizViewModel(
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Gán đáp án đúng cho câu hỏi theo chỉ số lựa chọn.
      */
 
     fun updateCorrectAnswer(questionId: String, index: Int) {
@@ -152,8 +143,8 @@ class QuizViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Nhập danh sách câu hỏi quiz từ file CSV.
+     * File yêu cầu các cột: câu hỏi, đáp án A, đáp án B, đáp án C, đáp án D, đáp án đúng.
      */
 
     fun importQuestionsFromFile(inputStream: InputStream, fileName: String?, mimeType: String?) {
@@ -190,8 +181,8 @@ class QuizViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Validate và lưu quiz vào Firestore.
+     * Tùy chế độ form, hàm sẽ tạo quiz mới hoặc cập nhật quiz hiện có.
      */
 
     fun save() {

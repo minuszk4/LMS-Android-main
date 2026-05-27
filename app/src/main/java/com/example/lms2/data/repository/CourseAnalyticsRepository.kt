@@ -28,8 +28,8 @@ class CourseAnalyticsRepository(
     private val quizProgressCollection = firestore.collection("quizProgress")
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tổng hợp thống kê chi tiết của một khóa học.
+     * Kết quả gồm số ghi danh, doanh thu đã thanh toán, tỷ lệ hoàn thành, tỷ lệ đạt quiz và danh sách review.
      */
 
     suspend fun getCourseAnalytics(courseId: String): ResultState<CourseAnalyticsData> {
@@ -101,6 +101,10 @@ class CourseAnalyticsRepository(
         }
     }
 
+    /**
+     * Lọc các dòng đơn hàng chỉ thuộc những order đã thanh toán thành công.
+     * Việc này tránh tính doanh thu từ các order đang chờ thanh toán hoặc đã thất bại.
+     */
     private suspend fun filterSuccessfulOrderItems(items: List<OrderItem>): List<OrderItem> {
         if (items.isEmpty()) return emptyList()
 

@@ -40,8 +40,8 @@ class CourseRepository {
     private val courseUpdateNotificationCooldownMs = 30 * 60 * 1000L
 
     /**
-     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tạo khóa học mới trong collection `courses`.
+     * Repository tự sinh document id, gán thời điểm tạo/cập nhật và xóa cache danh sách khóa học liên quan.
      */
 
     suspend fun createCourse(course: Course): ResultState<String> {
@@ -62,8 +62,8 @@ class CourseRepository {
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Cập nhật thông tin khóa học do giảng viên chỉnh sửa.
+     * Sau khi cập nhật, cache khóa học được invalidate và học viên đã ghi danh có thể nhận thông báo khóa học thay đổi.
      */
 
     suspend fun updateCourse(course: Course): ResultState<Unit> {
@@ -123,8 +123,8 @@ class CourseRepository {
     }
 
     /**
-     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Xóa khóa học và các dữ liệu phụ thuộc của khóa học đó.
+     * Các document lesson, quiz, enrollment, review và progress được gom batch theo chunk để không vượt giới hạn Firestore.
      */
 
     suspend fun deleteCourse(courseId: String): ResultState<Unit> {
@@ -172,8 +172,7 @@ class CourseRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy chi tiết một khóa học theo document id.
      */
 
     suspend fun getCourseById(courseId: String): ResultState<Course> {
@@ -194,8 +193,8 @@ class CourseRepository {
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tìm kiếm khóa học đã phát hành theo tiêu đề, mô tả hoặc tên giảng viên.
+     * Firestore lấy tập khóa học published trước, sau đó lọc chuỗi phía client.
      */
 
     suspend fun searchCourses(query: String): ResultState<List<Course>> {
@@ -226,8 +225,7 @@ class CourseRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy danh sách khóa học thuộc một giảng viên, sắp xếp mới nhất trước.
      */
 
     suspend fun getCoursesByInstructor(instructorId: String): ResultState<List<Course>> {
@@ -245,8 +243,7 @@ class CourseRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy toàn bộ khóa học cho màn quản trị bằng cách duyệt qua các trang dữ liệu.
      */
 
     suspend fun getAllCoursesForAdmin(): ResultState<List<Course>> {
@@ -279,8 +276,7 @@ class CourseRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy một trang khóa học cho admin, có hỗ trợ cursor và cache ngắn hạn.
      */
 
     suspend fun getAllCoursesForAdminPage(
@@ -331,8 +327,7 @@ class CourseRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy toàn bộ khóa học đã publish bằng cách duyệt qua các trang dữ liệu.
      */
 
     suspend fun getAllPublishedCourses(): ResultState<List<Course>> {
@@ -365,8 +360,8 @@ class CourseRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy một trang khóa học đã publish cho màn khám phá/tìm kiếm.
+     * Kết quả dùng cursor để tải thêm và cache để giảm số lần đọc Firestore.
      */
 
     suspend fun getAllPublishedCoursesPage(
@@ -426,8 +421,8 @@ class CourseRepository {
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Cập nhật trạng thái xuất bản của khóa học.
+     * Khi publish/unpublish thay đổi, cache danh sách khóa học public và admin đều được xóa.
      */
 
     suspend fun updatePublishStatus(courseId: String, isPublished: Boolean): ResultState<Unit> {
@@ -453,8 +448,8 @@ class CourseRepository {
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tăng số lượng ghi danh của khóa học trong transaction.
+     * Hàm được dùng khi học viên đăng ký thành công để tránh mất cập nhật đồng thời.
      */
 
     suspend fun incrementEnrollment(courseId: String): ResultState<Unit> {

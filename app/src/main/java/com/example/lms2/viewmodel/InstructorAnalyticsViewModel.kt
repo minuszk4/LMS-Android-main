@@ -34,8 +34,8 @@ class InstructorAnalyticsViewModel(
     private var lastInstructorId: String = ""
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Khởi tạo dữ liệu thống kê cho giảng viên.
+     * Nếu dữ liệu đã được tải cho cùng `instructorId`, hàm sẽ không gọi repository lại.
      */
 
     fun init(instructorId: String) {
@@ -45,8 +45,7 @@ class InstructorAnalyticsViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải lại thống kê giảng viên khi người dùng kéo làm mới hoặc quay lại dashboard.
      */
 
     fun refresh(instructorId: String) {
@@ -55,8 +54,8 @@ class InstructorAnalyticsViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Đổi khoảng thời gian thống kê như 7 ngày, 30 ngày, 90 ngày hoặc toàn bộ.
+     * Sau khi đổi range, ViewModel tải lại KPI và dữ liệu biểu đồ tương ứng.
      */
 
     fun selectRange(instructorId: String, range: InstructorTimeRange) {
