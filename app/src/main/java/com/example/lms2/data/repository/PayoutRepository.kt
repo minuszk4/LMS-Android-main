@@ -31,8 +31,7 @@ class PayoutRepository {
     /**
      * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-    /// Ví dụ: Lấy danh sách các khoản thanh toán của giảng viên, có thể bao gồm việc đồng bộ dữ liệu bị thiếu từ các đơn hàng đã thành công trước đó để đảm bảo rằng dữ liệu hiển thị ở tầng giao diện luôn đầy đủ và cập nhật nhất.
+     * Ví dụ: Lấy danh sách các khoản thanh toán của giảng viên, có thể bao gồm việc đồng bộ dữ liệu bị thiếu từ các đơn hàng đã thành công trước đó để đảm bảo rằng dữ liệu hiển thị ở tầng giao diện luôn đầy đủ và cập nhật nhất.
      */
     suspend fun getInstructorPayouts(): ResultState<List<InstructorPayout>> {
         return try {

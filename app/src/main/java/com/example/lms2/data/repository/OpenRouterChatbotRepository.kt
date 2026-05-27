@@ -845,7 +845,7 @@ class OpenRouterChatbotRepository {
         }
     }
     // Hàm này được gọi khi chatbot phát hiện ý định gợi ý khóa học từ tin nhắn của người dùng. Nó sẽ xử lý ý định này bằng cách gọi hàm `handleMlRecommendation` để lấy danh sách khóa học được gợi ý dựa trên nội dung tin nhắn, sau đó gửi phản hồi từ chatbot với danh sách khóa học đó. Nếu có lỗi xảy ra trong quá trình xử lý, sẽ trả về `ResultState.Error` với thông tin lỗi để tầng gọi phía trên có thể xử lý và hiển thị thông báo cho người dùng nếu cần.
-     */
+    
     private suspend fun handleLocalFallbackIntent(
         sessionId: String,
         userId: String,
@@ -1776,7 +1776,7 @@ class OpenRouterChatbotRepository {
         val marker = markers.firstOrNull { lower.contains(it) } ?: return ""
         val start = lower.indexOf(marker)
         if (start < 0) return ""
-        val after = text.substring(start + marker.length).trim(' ', ':', '-', '"', '\''")
+        val after = text.substring(start + marker.length).trim(' ', ':', '-', '"', '\'')
         val cutWords = listOf("vào giỏ", "vao gio", "giỏ", "cart", "thêm", "add")
         val cutAt = cutWords.map { after.lowercase().indexOf(it) }.filter { it >= 0 }.minOrNull() ?: -1
         return (if (cutAt > 0) after.substring(0, cutAt) else after).trim()
