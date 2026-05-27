@@ -220,7 +220,7 @@ function requireEnv(name) {
   }
   return value;
 }
-
+// Ham phu de xay dung chuoi ky khi tao request sang MoMo, theo dung dac ta cua MoMo de dam bao request duoc chap nhan va xu ly dung cach.
 function buildCreateSignaturePayload(payload) {
   return [
     `accessKey=${payload.accessKey}`,
@@ -235,7 +235,7 @@ function buildCreateSignaturePayload(payload) {
     `requestType=${payload.requestType}`
   ].join("&");
 }
-
+// Ham phu de xay dung chuoi ky khi tao request sang MoMo, theo dung dac ta cua MoMo de dam bao request duoc chap nhan va xu ly dung cach.
 async function createMomoPayment(payload) {
   // Ham nay tao request da duoc ky gui sang MoMo va luu toan bo cap
   // request/response vao Firestore de phuc vu support va audit.
@@ -334,7 +334,7 @@ async function createMomoPayment(payload) {
     requestId
   };
 }
-
+// Ham phu de luu giao dich vao Firestore, bat dau tu IPN duoc MoMo gui ve va ket thuc khi order duoc fulfill thanh cong hay that bai.
 async function upsertBankTransaction(payload) {
   // Moi webhook deu duoc luu xuong truoc de viec truy vet khong phu thuoc vao
   // viec buoc fulfill phia sau co thanh cong ngay trong request do hay khong.
@@ -382,7 +382,7 @@ async function upsertBankTransaction(payload) {
 
   return { docId, status: record.status };
 }
-
+// Ham phu de xay dung document ID cho su kien feedback den recommendation engine, dam bao tinh duy nhat va co cau truc de truy van sau nay.
 function buildRecommendationEventDocId(eventType, orderId, courseId, userId) {
   const safeEventType = String(eventType || "").trim().toUpperCase();
   const safeOrderId = String(orderId || "").trim();
@@ -390,7 +390,7 @@ function buildRecommendationEventDocId(eventType, orderId, courseId, userId) {
   const safeUserId = String(userId || "").trim();
   return `${safeEventType}_${safeOrderId}_${safeCourseId}_${safeUserId}`.replace(/[^A-Z0-9_:-]/gi, "_");
 }
-
+// Ham phu de xay dung document ID cho su kien feedback den recommendation engine, dam bao tinh duy nhat va co cau truc de truy van sau nay.
 function buildRecommendationFeedbackEvent({
   eventType,
   orderId,
@@ -410,7 +410,9 @@ function buildRecommendationFeedbackEvent({
     createdAt: now,
   };
 }
-
+// Ham phu de thuc hien fulfillment order sau khi nhan duoc IPN thanh cong tu MoMo, bao gom enrollment cho hoc vien va tao payout record cho giao vien neu co.
+// Ham nay duoc thuc hien trong mot Firestore transaction de dam bao tinh nguyen nguyen tu va doi chieu du lieu dung cach trong qua trinh fulfill order.
+// Neu co bat ky buoc nao khong thoa man dieu kien de fulfill order thanh cong (vd: order khong ton tai, order khong o trang thai pending, so tien IPN nho hon tong tien order, etc), thi transaction se bi rollback va order se khong bi cap nhat sai lech.
 async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
   // Fulfillment duoc goi trong mot Firestore transaction de enrollment,
   // xac nhan order, tao payout va xoa cart giu duoc tinh nhat quan.
@@ -466,7 +468,7 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
       if (!courseId) {
         continue;
       }
-
+      //  Lấy thông tin khóa học và giảng viên liên quan đến item để chuẩn bị cho việc fulfill order, tránh việc phải đọc nhiều lần trong các bước sau khi đã biết item hợp lệ hay không, đồng thời cũng giúp việc fulfill được đầy đủ hơn khi có đủ thông tin liên quan đến course và instructor ngay từ đầu.
       const courseRef = db.collection("courses").doc(courseId);
       const courseSnapshot = await tx.get(courseRef);
       const courseData = courseSnapshot.data() || {};
@@ -485,7 +487,7 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
         instructorData = instructorSnapshot.data() || {};
         payoutSnapshot = await tx.get(db.collection("instructorPayouts").doc(itemDoc.id));
       }
-
+      // Luu tru context cua tung item vao mot mang de xu ly sau khi da xac nhan het tat ca dieu kien de fulfill order, tranh tinh trang fulfill duoc mot phan item roi moi xac nhan item khac ma bi fail o buoc fulfill do thi se de lai order o trang thai khong chinh xac va khoi phuc sau nay se phuc tap.
       itemContexts.push({
         itemDoc,
         item,
@@ -502,7 +504,7 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
         payoutExists: payoutSnapshot ? payoutSnapshot.exists : false
       });
     }
-
+    // Neu order khong co item nao hop le de fulfill thi se khong cap nhat trang thai order ma chi cap nhat bank transaction la da duoc su dung, de tranh viec IPN gui lai nhieu lan ma moi lan deu bi fail o buoc fulfill do khong hop le.
     for (const itemContext of itemContexts) {
       const {
         itemDoc,
@@ -519,7 +521,7 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
         instructorData,
         payoutExists
       } = itemContext;
-
+      // Neu hoc vien chua duoc enroll vao khoa hoc, thi tao moi enrollment va cap nhat so luong hoc vien cua khoa hoc, neu giao vien ton tai va chua co payout record cho order item nay thi tao moi payout record, va tao su kien feedback cho recommendation engine de mo rong tinh nang sau nay neu can.
       if (!enrollmentExists) {
         tx.set(enrollmentRef, {
           id: enrollmentId,
@@ -527,7 +529,7 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
           courseId,
           enrolledAt: now
         });
-
+        // Cap nhat so luong hoc vien dang ky cua khoa hoc, su dung FieldValue.increment de tranh tinh trang
         tx.update(courseRef, {
           enrollmentCount: admin.firestore.FieldValue.increment(1)
         });
@@ -545,9 +547,9 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
           enrollEvent
         );
       }
-
+      // Xoa cart item sau khi da enroll thanh cong de giu du lieu sach se khong bi lech so luong giu duoc va de tranh viec hoc vien bi enroll nhieu lan do IPN gui lai nhieu lan.
       tx.delete(db.collection("cartItems").doc(`${userId}_${courseId}`));
-
+      // Su kien purchase duoc tao ra cho moi item trong order de mo rong them cac tinh nang recommendation feedback sau nay neu can, va de giup viec truy van va doi chieu du lieu de dang hon.
       const purchaseEvent = buildRecommendationFeedbackEvent({
         eventType: "PURCHASE",
         orderId,
@@ -560,14 +562,14 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
         db.collection("recommendationFeedbackEvents").doc(purchaseEvent.id),
         purchaseEvent
       );
-
+      // Neu giao vien ton tai va chua co payout record cho order item nay, thi tao moi payout record.
       if (instructorId && !payoutExists) {
         const bankName = String(instructorData.bankName || "").trim();
         const bankCode = String(instructorData.bankCode || "").trim();
         const bankAccountNumber = String(instructorData.bankAccountNumber || "").trim();
         const bankAccountHolder = String(instructorData.bankAccountHolder || "").trim();
         const hasBankInfo = Boolean(bankName && bankAccountNumber && bankAccountHolder);
-
+        // Payout record ID dung chung voi order item ID de de dang doi chieu va truy van sau nay.
         tx.set(db.collection("instructorPayouts").doc(itemDoc.id), {
           id: itemDoc.id,
           orderId,
@@ -594,12 +596,12 @@ async function fulfillOrderForSuccessfulIpn(payload, bankTransactionDocId) {
         });
       }
     }
-
+    // Sau khi da xac nhan va fulfill het tat ca item trong order, cap nhat trang thai order sang SUCCESS va cap nhat bank transaction la da duoc su dung de fulfill order do.
     tx.update(orderRef, {
       paymentStatus: "SUCCESS",
       confirmedAt: now
     });
-
+    // Cap nhat giao dich la da duoc su dung de fulfill order, tranh tinh trang giao dich moi duoc IPN gui ve ma bi trung lap requestId hay transId.
     tx.update(bankTxRef, {
       status: "USED",
       consumedOrderId: orderId,
@@ -677,6 +679,8 @@ app.post("/createMomoPayment", authenticateFirebaseUser, async (req, res) => {
 app.post("/momoIpnWebhook", async (req, res) => {
   // Day la nguon chan ly phia server cho viec finalize order.
   // Client tuyet doi khong tu danh dau paymentStatus = SUCCESS.
+  // Chỉ khi nào IPN được xác minh là hợp lệ và thành công thì order mới được cập nhật sang SUCCESS.
+  // Việc này đảm bảo rằng hacker sẽ không thể giả mạo IPN để đánh dấu order là đã thanh toán khi chưa thực sự có giao dịch thành công từ MoMo.
   const payload = req.body && typeof req.body === "object" ? req.body : {};
   console.log("[momoIpnWebhook] Incoming payload", payload);
 
@@ -687,7 +691,11 @@ app.post("/momoIpnWebhook", async (req, res) => {
       return res.status(400).json({ resultCode: 98, message: `Invalid signature: ${verified.reason}` });
     }
   }
-
+  // Sau khi da xac minh IPN la hop le va den tu MoMo, tiep theo se luu giao dich vao Firestore va thu thap du lieu de fulfill order.
+  // Neu co bat ky buoc nao khong thoa man dieu kien de fulfill order thanh cong (vd: order khong ton tai, order khong o trang thai pending, so tien IPN nho hon tong tien order, etc), thi transaction se bi rollback va order se khong bi cap nhat sai lech.
+  // Việc fulfill order được thực hiện trong cùng một transaction với việc lưu bank transaction để đảm bảo tính nguyên tử và nhất quán dữ liệu.
+  // Neu fulfill order thanh cong thi se cap nhat order sang SUCCESS, tao enrollment cho hoc vien va payout record cho giao vien neu co, va cap nhat bank transaction la da duoc su dung de fulfill order do.
+  // Neu fulfill order that bai thi transaction se bi rollback va order se van o trang thai PENDING, de cho viec dieu tra va xu ly sau nay.
   try {
     const saved = await upsertBankTransaction(payload);
     const fulfillment = await fulfillOrderForSuccessfulIpn(payload, saved.docId);

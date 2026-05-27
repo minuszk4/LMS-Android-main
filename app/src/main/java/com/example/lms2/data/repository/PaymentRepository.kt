@@ -222,12 +222,12 @@ class PaymentRepository {
                     val courseSnapshot = transaction.get(courseRef)
                     val course = courseSnapshot.toObject(Course::class.java)
                         ?: throw IllegalStateException("Không tìm thấy khóa học, vui lòng tải lại")
-
+                    // Kiểm tra xem khóa học đã được đăng ký bởi người dùng hay chưa. Nếu đã đăng ký, ném lỗi để rollback transaction và trả về lỗi cho người dùng.
                     val enrollmentRef = enrollmentsCollection.document(buildEnrollmentId(userId, courseId))
                     if (transaction.get(enrollmentRef).exists()) {
                         throw IllegalStateException("Có khóa học bạn đã đăng ký, vui lòng tải lại")
                     }
-
+                    // Nếu checkout từ giỏ hàng mà khóa học không còn trong giỏ hàng, ném lỗi để rollback transaction và trả về lỗi cho người dùng.
                     val itemData = if (fromCart) {
                         val cartItemRef = cartItemsCollection.document(buildCartItemId(userId, courseId))
                         val cartItem = transaction.get(cartItemRef)
@@ -249,7 +249,7 @@ class PaymentRepository {
                     } else {
                         val cartItemRef = cartItemsCollection.document(buildCartItemId(userId, courseId))
                         val cartItem = transaction.get(cartItemRef).toObject(CartItem::class.java)
-
+                        // Nếu checkout trực tiếp mà vẫn còn mục trong giỏ hàng, thì sẽ sử dụng giá trong giỏ hàng để tính tổng tiền, nhưng vẫn hiển thị thông tin khóa học mới nhất (ví dụ như tiêu đề, ảnh thumbnail, v.v.) để đảm bảo rằng người dùng sẽ thanh toán đúng số tiền dựa trên thông tin khóa học mới nhất, đồng thời tránh các vấn đề liên quan đến dữ liệu lỗi thời trong giỏ hàng.
                         ResolvedCheckoutItem(
                             courseId = courseId,
                             instructorId = course.instructorId,
@@ -262,7 +262,7 @@ class PaymentRepository {
                             cartItemPriceToRemove = cartItem?.coursePrice
                         )
                     }
-
+                    // Tính tổng số tiền dựa trên giá khóa học hiện tại thay vì giá trong giỏ hàng để tránh trường hợp giá đã thay đổi nhưng giỏ hàng chưa được cập nhật. Điều này giúp đảm bảo rằng người dùng sẽ thanh toán đúng số tiền dựa trên thông tin khóa học mới nhất, đồng thời tránh các vấn đề liên quan đến dữ liệu lỗi thời trong giỏ hàng.
                     totalAmount += itemData.coursePrice
                     resolvedItems.add(itemData)
                 }
@@ -272,11 +272,12 @@ class PaymentRepository {
                 val transferContentNormalized = if (transferContent.isBlank()) {
                     ""
                 } else {
+                    // Chuẩn hóa nội dung chuyển khoản bằng cách loại bỏ khoảng trắng thừa, chuyển sang chữ hoa, và loại bỏ các ký tự đặc biệt không cần thiết. Điều này giúp đảm bảo rằng nội dung chuyển khoản sẽ được xử lý một cách nhất quán và dễ dàng hơn khi đối chiếu với thông tin giao dịch từ ngân hàng hoặc ví điện tử.
                     normalizeTransferContent(transferContent)
                 }
-
+                // Khi tạo đơn hàng mới, đặt trạng thái thanh toán ban đầu là "PENDING" để phản ánh rằng đơn hàng đã được tạo nhưng chưa hoàn tất quá trình thanh toán. Điều này giúp hệ thống có thể theo dõi và quản lý các đơn hàng đang chờ thanh toán một cách hiệu quả, đồng thời cung cấp thông tin rõ ràng cho người dùng về trạng thái đơn hàng của họ.
                 val initialStatus = PaymentStatus.PENDING
-
+                    // Tạo đơn hàng mới với các thông tin liên quan như tổng số tiền, phương thức thanh toán, nội dung chuyển khoản, v.v. Sau đó, tạo các mục đơn hàng tương ứng cho từng khóa học đã chọn. Tất cả các thao tác này được thực hiện trong một transaction để đảm bảo tính nhất quán của dữ liệu và có thể rollback nếu có lỗi xảy ra trong quá trình này.
                     val order = Order(
                         id = orderId,
                         userId = userId,
@@ -296,7 +297,7 @@ class PaymentRepository {
                         confirmedAt = 0L
                     )
                 transaction.set(orderRef, order)
-
+                // Nếu checkout từ giỏ hàng, cập nhật giỏ hàng của người dùng bằng cách trừ đi số lượng và tổng tiền của các mục đã thanh toán. Nếu sau khi cập nhật mà giỏ hàng không còn mục nào, có thể xóa giỏ hàng hoặc cập nhật trạng thái giỏ hàng thành "EMPTY".
                 resolvedItems.forEach { item ->
                     val orderItem = OrderItem(
                         id = buildOrderItemId(orderId, item.courseId),
