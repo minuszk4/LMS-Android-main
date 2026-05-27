@@ -952,17 +952,25 @@ class OpenRouterChatbotRepository {
             }
         }
 
+        // Thực thi chức năng cục bộ tương ứng với intent đã nhận diện.
+        // Ở nhánh fallback này, chatbot không gọi LLM nữa mà đi thẳng vào code nghiệp vụ thật.
         val result = executeFunctionCall(userId, functionName, args)
 
+        // Nếu kết quả trả về cho biết có nhiều course phù hợp và cần người dùng chọn lại,
+        // hệ thống sẽ không trả lời dứt điểm ngay mà lưu trạng thái chờ vào session hiện tại.
+        // Điều này giúp lượt nhắn tiếp theo như "chọn khóa 2" có thể được xử lý chính xác.
         if ((result["needsSelection"] as? Boolean) == true) {
             @Suppress("UNCHECKED_CAST")
             val candidates = (result["candidates"] as? List<Map<String, String>>) ?: emptyList()
             if (candidates.isNotEmpty()) {
+                // Ghi nhớ action gốc + danh sách ứng viên để tái sử dụng ở lượt chọn tiếp theo.
                 pendingCourseSelections[sessionId] = PendingCourseSelection(
                     action = result["action"] as? String ?: functionName,
                     candidates = candidates
                 )
 
+                // Chuẩn hóa candidate về metadata dạng COURSE_LIST để UI chatbot render được ngay
+                // mà không cần biết dữ liệu này đến từ fallback local hay từ OpenRouter tool calling.
                 val selectionMetadata = mapOf(
                     "courses" to candidates.map {
                         mapOf(
@@ -976,6 +984,8 @@ class OpenRouterChatbotRepository {
                     "type" to "course_list"
                 )
 
+                // Gửi lại danh sách lựa chọn cho người dùng thay vì tự chọn hộ,
+                // vì ở bước này hệ thống biết rằng intent đã đúng nhưng đối tượng course còn mơ hồ.
                 val bot = sendMessage(
                     sessionId = sessionId,
                     sender = ChatSender.BOT,
@@ -991,14 +1001,23 @@ class OpenRouterChatbotRepository {
             }
         }
 
+        // Với các kết quả không mơ hồ, hệ thống quyết định xem thao tác có thành công hay không,
+        // đồng thời suy ra kiểu hiển thị phù hợp cho UI từ chính dấu vết function vừa chạy.
         val success = result["success"] as? Boolean ?: false
         val (messageType, metadata) = analyzeResponseContent(listOf(functionName to result))
+
+        // Nội dung text trả lời được dựng khác nhau giữa nhánh thành công và nhánh lỗi:
+        // - thành công: ưu tiên câu mặc định ngắn gọn đã định nghĩa cho intent đó
+        // - thất bại: dùng thông báo lỗi thực tế từ code nghiệp vụ nếu có
         val responseText = if (success) {
             normalizeAiText(defaultText)
         } else {
             normalizeAiText(result["error"] as? String ?: "Mình chưa xử lý được yêu cầu này ở chế độ cục bộ.")
         }
 
+        // Lưu phản hồi cuối cùng của bot vào Firestore.
+        // Nếu thành công thì giữ messageType/metadata để UI render rich content;
+        // nếu thất bại thì rơi về TEXT để tránh hiển thị sai định dạng dữ liệu.
         val bot = sendMessage(
             sessionId = sessionId,
             sender = ChatSender.BOT,
