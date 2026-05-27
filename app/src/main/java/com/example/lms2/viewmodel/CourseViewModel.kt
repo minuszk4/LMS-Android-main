@@ -34,19 +34,19 @@ class CourseViewModel(
     private val instructorRepository: InstructorRepository = InstructorRepository()
 ) : ViewModel() {
 
-    // Main UI state observed by Compose screens for lists, forms, and loading flags.
+    // State trung tâm cho cả luồng khám phá khóa học, form giảng viên và recommendation.
     private val _uiState = MutableStateFlow(CourseUiState())
     val uiState: StateFlow<CourseUiState> = _uiState.asStateFlow()
 
-    // One-shot events for snackbar/error/navigation style side effects.
+    // Event một lần dùng cho snackbar, điều hướng hoặc thông báo lỗi.
     private val _event = MutableSharedFlow<CourseEvent>()
     val event = _event.asSharedFlow()
 
-    // Used to prevent duplicate recommendation impression logs on recomposition.
+    // Chữ ký dùng để tránh ghi lặp impression recommendation khi Compose recomposition.
     private var lastSuggestedImpressionSignature: String? = null
 
     init {
-        // Preload categories so the create/update form has data immediately.
+        // Tải sẵn categories để form tạo/sửa course có dữ liệu ngay khi mở.
         getCategories()
     }
 

@@ -5,7 +5,13 @@ from typing import DefaultDict, Dict, List
 
 
 def build_course_index(data: dict) -> Dict[str, dict]:
-    """Tra ve map cac course da publish theo course ID de tra cuu nhanh."""
+    """Trả về map các course đã publish theo course ID để tra cứu nhanh.
+
+    Hàm này là lớp chỉ mục cơ bản nhất của pipeline recommendation.
+    Chỉ những course đã publish mới được đưa vào candidate pool để:
+    - tránh train hoặc suy luận trên course chưa công khai,
+    - giữ cho app chỉ nhận các gợi ý có thể hiển thị thật.
+    """
     return {
         course.get("id"): course
         for course in data.get("courses", [])
@@ -14,7 +20,11 @@ def build_course_index(data: dict) -> Dict[str, dict]:
 
 
 def build_progress_by_user(data: dict) -> Dict[str, List[dict]]:
-    """Nhom cac ban ghi progress theo user ID."""
+    """Nhóm các bản ghi progress theo user ID.
+
+    Cấu trúc này được dùng lại ở cả runtime scoring và offline training
+    để tính mức độ học sâu của từng user trên từng course.
+    """
     progress_by_user: DefaultDict[str, List[dict]] = defaultdict(list)
     for progress in data.get("progress", []):
         user_id = progress.get("userId")
@@ -25,20 +35,29 @@ def build_progress_by_user(data: dict) -> Dict[str, List[dict]]:
 
 
 def build_positive_interactions(data: dict, course_by_id: Dict[str, dict]) -> Dict[str, Dict[str, float]]:
-    """Quy doi nhieu nguon hanh vi hoc vien thanh tin hieu positive co trong so.
+    """Quy đổi nhiều nguồn hành vi thành tín hiệu dương có trọng số.
 
-    Dau ra cua ham nay duoc dung lai cho ca huan luyen offline va xay dung
-    user profile luc runtime, giup thong nhat logic scoring toan bo stack.
+    Thay vì chỉ coi `enroll` là một positive signal nhị phân, pipeline gom thêm:
+    - progress,
+    - review,
+    - quiz progress,
+    - add-to-cart,
+    - purchase thành công.
+
+    Mỗi nguồn được quy đổi sang một mức điểm khác nhau để phản ánh
+    cường độ quan tâm thực tế của user với course.
     """
     interactions: DefaultDict[str, Dict[str, float]] = defaultdict(dict)
 
     for enrollment in data.get("enrollments", []):
+        # Enroll là tín hiệu dương mạnh nhất ở phía nghiệp vụ học tập.
         user_id = enrollment.get("userId")
         course_id = enrollment.get("courseId")
         if user_id and course_id in course_by_id:
             interactions[user_id][course_id] = max(interactions[user_id].get(course_id, 0.0), 1.0)
 
     for progress in data.get("progress", []):
+        # Progress phản ánh user có học thật hay chỉ đăng ký rồi bỏ đó.
         user_id = progress.get("userId")
         course_id = progress.get("courseId")
         if not user_id or course_id not in course_by_id:
@@ -50,6 +69,7 @@ def build_positive_interactions(data: dict, course_by_id: Dict[str, dict]) -> Di
         interactions[user_id][course_id] = max(interactions[user_id].get(course_id, 0.0), score)
 
     for review in data.get("reviews", []):
+        # Review có trọng số dương vì người dùng đã đủ quan tâm để để lại đánh giá.
         user_id = review.get("userId")
         course_id = review.get("courseId")
         if not user_id or course_id not in course_by_id:
@@ -59,6 +79,7 @@ def build_positive_interactions(data: dict, course_by_id: Dict[str, dict]) -> Di
         interactions[user_id][course_id] = max(interactions[user_id].get(course_id, 0.0), score)
 
     for quiz_progress in data.get("quizProgress", []):
+        # Quiz là tín hiệu engagement sâu hơn việc chỉ mở course.
         user_id = quiz_progress.get("userId")
         course_id = quiz_progress.get("courseId")
         if not user_id or course_id not in course_by_id:
@@ -70,6 +91,7 @@ def build_positive_interactions(data: dict, course_by_id: Dict[str, dict]) -> Di
         interactions[user_id][course_id] = max(interactions[user_id].get(course_id, 0.0), score)
 
     for cart_item in data.get("cartItems", []):
+        # Add-to-cart yếu hơn enroll/purchase nhưng vẫn đáng xem là ý định tích cực.
         user_id = cart_item.get("userId")
         course_id = cart_item.get("courseId")
         if user_id and course_id in course_by_id:
@@ -82,6 +104,7 @@ def build_positive_interactions(data: dict, course_by_id: Dict[str, dict]) -> Di
     }
 
     for order_item in data.get("orderItems", []):
+        # Purchase thành công được nâng lên mức tín hiệu tối đa tương đương enroll mạnh.
         order_id = order_item.get("orderId")
         order = successful_orders.get(order_id)
         if not order:
@@ -95,7 +118,11 @@ def build_positive_interactions(data: dict, course_by_id: Dict[str, dict]) -> Di
 
 
 def list_student_ids(data: dict, interactions: Dict[str, Dict[str, float]]) -> List[str]:
-    """Lay danh sach hoc vien hop le de train hoac danh gia."""
+    """Lấy danh sách học viên hợp lệ để train hoặc đánh giá.
+
+    Ưu tiên đọc từ collection `users` để giữ đúng role STUDENT.
+    Nếu snapshot user không đầy đủ, fallback sang tập user xuất hiện trong interactions.
+    """
     student_ids = [
         user.get("uid")
         for user in data.get("users", [])
@@ -112,7 +139,13 @@ def build_user_profile(
     course_by_id: Dict[str, dict],
     progress_records: List[dict]
 ) -> dict:
-    """Xay dung profile so thich gon nhe tu lich su khoa hoc positive."""
+    """Xây dựng profile sở thích gọn nhẹ từ lịch sử positive courses.
+
+    Profile đầu ra là contract chung giữa:
+    - app Android khi tính heuristic,
+    - backend lúc suy luận model,
+    - pipeline train lúc trích xuất feature.
+    """
     if not positive_course_ids:
         return {
             "categoryWeights": {},
@@ -129,6 +162,7 @@ def build_user_profile(
     enrolled_courses = [course_by_id[course_id] for course_id in positive_course_ids if course_id in course_by_id]
 
     for progress in progress_records:
+        # Tiến độ cao hơn làm tăng trọng số của course trong hồ sơ người dùng.
         if progress.get("userId") != user_id:
             continue
 
@@ -145,6 +179,7 @@ def build_user_profile(
         progress_weights[course_id] = progress_weight
 
     for course in enrolled_courses:
+        # Mỗi course đóng góp vào category, level, instructor và price affinity.
         weight = progress_weights.get(course.get("id"), 0.5)
         price = float(course.get("price", 0.0) or 0.0)
         if price > 0.0:
@@ -162,6 +197,7 @@ def build_user_profile(
         if instructor:
             instructor_weights[instructor] = instructor_weights.get(instructor, 0.0) + weight
 
+    # Chuẩn hóa các trọng số để profile ổn định hơn giữa user học ít và user học nhiều.
     total_weight = float(len(enrolled_courses)) if enrolled_courses else 1.0
     for key in list(category_weights.keys()):
         category_weights[key] /= total_weight

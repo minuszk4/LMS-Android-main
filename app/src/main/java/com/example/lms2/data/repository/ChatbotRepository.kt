@@ -29,6 +29,12 @@ import java.net.URL
  */
 
 class ChatbotRepository {
+    // Đây là chatbot repository "thế hệ đầu":
+    // - lưu session/message trên Firestore,
+    // - gọi model bằng REST API thủ công,
+    // - định nghĩa tool bằng JSON để model truy xuất dữ liệu LMS.
+    // Nó đơn giản hơn bản OpenRouter mới, nhưng vẫn là một lớp quan trọng để hiểu
+    // cách hệ thống xây dựng chatbot stateful và lưu lịch sử hội thoại.
 
     private val firestore = FirebaseFirestore.getInstance()
     private val chatSessionsCollection = firestore.collection("chatSessions")
@@ -45,6 +51,8 @@ class ChatbotRepository {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Ưu tiên tái sử dụng session ACTIVE gần nhất để người dùng tiếp tục đúng ngữ cảnh cũ.
+    // Chỉ khi chưa có session phù hợp thì mới tạo mới, tránh làm phân mảnh lịch sử chat.
     suspend fun getOrCreateActiveSession(
         userId: String,
         defaultTitle: String = "Trợ lý học tập"
@@ -77,6 +85,8 @@ class ChatbotRepository {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Một session mới được khởi tạo với trạng thái ACTIVE và timestamp hiện tại cho cả
+    // `createdAt` lẫn `lastMessageAt`, để UI sắp xếp lịch sử đúng ngay từ đầu.
     suspend fun createSession(
         userId: String,
         title: String = "Trợ lý học tập"
@@ -107,6 +117,7 @@ class ChatbotRepository {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Dùng cho các UI cần phân trang lịch sử chat; dữ liệu được cache theo user + page size.
     suspend fun getUserSessionsPaged(
         userId: String,
         pageRequest: PageRequest
@@ -161,6 +172,7 @@ class ChatbotRepository {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Bản "lấy tất cả" tiện cho những màn chỉ cần toàn bộ session đã có.
     suspend fun getUserSessions(userId: String): ResultState<List<ChatSession>> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -359,6 +371,7 @@ class ChatbotRepository {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Dùng để phát hiện session rỗng gần nhất, phục vụ các flow tránh tạo thừa session.
     suspend fun findLatestEmptyActiveSession(userId: String): ResultState<ChatSession?> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -393,6 +406,7 @@ class ChatbotRepository {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Tin nhắn luôn được sort tăng dần theo thời gian để conversation render đúng thứ tự.
     suspend fun getSessionMessages(sessionId: String): ResultState<List<ChatMessage>> {
         if (sessionId.isBlank()) return ResultState.Error("Thiếu thông tin phiên chat")
 
@@ -417,6 +431,8 @@ class ChatbotRepository {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Lưu message và cập nhật `lastMessageAt` của session trong cùng một batch
+    // để sidebar lịch sử chat phản ánh ngay hoạt động mới nhất.
     suspend fun sendMessage(
         sessionId: String,
         sender: ChatSender,
@@ -463,6 +479,11 @@ class ChatbotRepository {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Đây là orchestration chính của chatbot phiên bản cũ:
+    // 1. lưu message user,
+    // 2. nạp lịch sử hội thoại,
+    // 3. gọi provider AI,
+    // 4. lưu lại message bot.
     suspend fun sendUserMessageAndApiReply(
         sessionId: String,
         userContent: String,
@@ -504,6 +525,7 @@ class ChatbotRepository {
         }
     }
 
+    // Dựng payload chat completion và danh sách tool mà model được phép gọi.
     private suspend fun requestAssistantReply(historyMessages: List<ChatMessage>, latestUserContent: String, userId: String = ""): String {
         val apiKey = BuildConfig.CHATBOT_API_KEY
         if (apiKey.isBlank()) {

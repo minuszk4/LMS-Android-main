@@ -12,11 +12,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Điều phối trạng thái giao diện trong AdminPayoutViewModel.
- * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
- * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ * ViewModel cho màn hình quản lý payout giảng viên của admin.
+ *
+ * File này tập trung vào hai tác vụ: tải danh sách payout hiện có
+ * và đánh dấu một nhóm payout là đã thanh toán.
  */
-
 data class AdminPayoutUiState(
     val isLoading: Boolean = false,
     val isProcessing: Boolean = false,
@@ -24,17 +24,12 @@ data class AdminPayoutUiState(
 )
 
 /**
- * Khai báo AdminPayoutEvent trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ * Event một lần để hiển thị lỗi hoặc thông báo thành công.
  */
-
 sealed class AdminPayoutEvent {
     data class ShowError(val message: String) : AdminPayoutEvent()
     data class ShowSuccess(val message: String) : AdminPayoutEvent()
 }
-
-/**
- * Khai báo AdminPayoutViewModel trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
- */
 
 class AdminPayoutViewModel(
     private val payoutRepository: PayoutRepository = PayoutRepository()
@@ -47,10 +42,8 @@ class AdminPayoutViewModel(
     val event = _event.asSharedFlow()
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải danh sách payout hiện tại để admin rà soát và xử lý.
      */
-
     fun loadPayouts() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
@@ -74,10 +67,11 @@ class AdminPayoutViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Đánh dấu một nhóm payout là đã chuyển tiền thành công.
+     *
+     * `manualTransferReference` được truyền xuống repository để lưu dấu vết
+     * cho đợt chi trả thủ công của admin.
      */
-
     fun markPayoutGroupAsPaid(
         payoutIds: List<String>,
         adminUid: String,
@@ -94,7 +88,7 @@ class AdminPayoutViewModel(
                 )
             ) {
                 is ResultState.Success -> {
-                    _event.emit(AdminPayoutEvent.ShowSuccess("Da danh dau chuyen tien thanh cong"))
+                    _event.emit(AdminPayoutEvent.ShowSuccess("Đã đánh dấu chuyển tiền thành công"))
                     loadPayouts()
                 }
 

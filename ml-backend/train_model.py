@@ -1,7 +1,7 @@
-"""Pipeline huan luyen cho backend recommendation cua LMS.
+"""Pipeline huấn luyện cho backend recommendation của LMS.
 
-Module nay chuyen du lieu hanh vi runtime thanh sample co nhan, train model
-baseline, danh gia metric ranking va co the dang ky artifact thanh version moi.
+Module này biến dữ liệu hành vi runtime thành tập mẫu có nhãn, huấn luyện model,
+đánh giá bằng metric ranking và đăng ký artifact thành version mới trong registry.
 """
 
 from __future__ import annotations
@@ -31,7 +31,13 @@ DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "artifacts" / "recommenda
 
 
 def build_training_set(data: dict) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, Dict[str, float]]]:
-    """Dung ma tran train co giam sat tu du lieu tuong tac runtime."""
+    """Dựng ma trận train có giám sát từ dữ liệu tương tác runtime.
+
+    Ý tưởng chính:
+    - positive samples đến từ các course có tín hiệu hành vi dương,
+    - negative samples được lấy mẫu từ các course published còn lại,
+    - sample weight tăng theo cường độ tương tác để model học ưu tiên đúng tín hiệu mạnh.
+    """
     model = RecommendationModel()
     rng = np.random.default_rng(42)
     course_by_id = build_course_index(data)
@@ -60,6 +66,7 @@ def build_training_set(data: dict) -> Tuple[np.ndarray, np.ndarray, np.ndarray, 
         positives = [course_by_id[course_id] for course_id in positive_course_ids if course_id in course_by_id]
         negatives = [course for course in published_courses if course.get("id") not in interaction_scores]
 
+        # Không lấy toàn bộ negatives để tránh lệch lớp quá mạnh và làm training set phình lớn.
         max_negatives = min(len(negatives), max(len(positives) * 3, 6))
         sampled_negatives = []
         if max_negatives > 0:
@@ -67,12 +74,14 @@ def build_training_set(data: dict) -> Tuple[np.ndarray, np.ndarray, np.ndarray, 
             sampled_negatives = [negatives[index] for index in sorted(sampled_indices.tolist())]
 
         for course in positives:
+            # Positive sample giữ trọng số cao hơn nếu course có nhiều tín hiệu mạnh.
             features = model.extract_features(user_profile, course, positive_course_ids)
             X_train.append(features)
             y_train.append(1)
             sample_weights.append(1.0 + float(interaction_scores.get(course.get("id"), 0.0)))
 
         for course in sampled_negatives:
+            # Negative sample luôn có trọng số cơ bản để giữ biên quyết định ổn định.
             features = model.extract_features(user_profile, course, positive_course_ids)
             X_train.append(features)
             y_train.append(0)
@@ -95,11 +104,17 @@ def evaluate_ranking_metrics(
     interactions_by_user: Dict[str, Dict[str, float]],
     k_values: Tuple[int, int] = (5, 10),
 ) -> Dict[str, float]:
-    """Danh gia model bang giao thuc holdout ranking don gian."""
+    """Đánh giá model bằng giao thức holdout ranking đơn giản.
+
+    Với mỗi user đủ điều kiện, pipeline giữ lại course positive mạnh nhất làm holdout,
+    còn phần lịch sử còn lại dùng để dựng profile. Model sau đó phải đưa holdout đó
+    lên top-K candidate càng cao càng tốt.
+    """
     course_by_id = build_course_index(data)
     progress_by_user = build_progress_by_user(data)
     published_courses = list(course_by_id.values())
 
+    # Cần ít nhất 2 positive interactions để vừa dựng profile vừa giữ lại 1 holdout item.
     evaluable_users = [
         user_id
         for user_id, scores in interactions_by_user.items()
@@ -167,7 +182,7 @@ def evaluate_ranking_metrics(
 
 
 def build_model_version_id() -> str:
-    """Sinh version ID dua tren thoi gian cho artifact moi."""
+    """Sinh version ID dựa trên thời gian cho artifact mới."""
     return time.strftime("reco_%Y%m%d_%H%M%S", time.localtime())
 
 
@@ -177,15 +192,26 @@ def train_and_register(
     output_path: Path = DEFAULT_MODEL_PATH,
     activate_if_better: bool = True,
 ) -> Dict:
-    """Train baseline recommender va dang ky artifact ket qua."""
+    """Huấn luyện recommender và đăng ký artifact kết quả.
+
+    Đây là workflow trung tâm của model-ops:
+    1. nạp dữ liệu runtime,
+    2. lọc theo cửa sổ thời gian nếu cần,
+    3. tạo training set,
+    4. train model và tính metric,
+    5. quyết định có activate model mới hay không,
+    6. ghi artifact + metadata vào registry.
+    """
     registry = ModelRegistry()
     runtime_data, source_name = load_runtime_data(
         source=data_source,
         seed_data_path=resolve_seed_data_path(),
     )
+    # Chỉ giữ dữ liệu trong cửa sổ thời gian mong muốn để giảm ảnh hưởng của hành vi quá cũ.
     runtime_data = filter_data_by_window(runtime_data, window_days=window_days)
 
     X_train, y_train, sample_weights, interactions_by_user = build_training_set(runtime_data)
+    # Model phân loại cần cả positive và negative class để train hợp lệ.
     if len(set(y_train.tolist())) < 2:
         raise ValueError("Training data must contain at least two classes.")
 
@@ -211,6 +237,7 @@ def train_and_register(
         "featureNames": model.feature_names,
     }
 
+    # So sánh với model active hiện tại trước khi promote version mới.
     active_model_metadata = registry.get_active_model_metadata()
     activation_decision = (
         registry.should_activate_model(metrics, active_model_metadata)
@@ -249,7 +276,7 @@ def train_and_register(
 
 
 def main() -> None:
-    """Diem vao CLI cho train thu cong va dang ky artifact."""
+    """Điểm vào CLI cho train thủ công và đăng ký artifact."""
     parser = argparse.ArgumentParser(description="Train and register the recommendation model.")
     parser.add_argument(
         "--data-source",

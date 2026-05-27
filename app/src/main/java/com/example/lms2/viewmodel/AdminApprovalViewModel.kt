@@ -13,11 +13,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Điều phối trạng thái giao diện trong AdminApprovalViewModel.
- * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
- * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ * ViewModel cho màn hình duyệt đơn đăng ký giảng viên.
+ *
+ * Nhiệm vụ chính của file là tải danh sách chờ duyệt và điều phối hai thao tác
+ * quan trọng của admin: phê duyệt hoặc từ chối đơn.
  */
-
 data class AdminApprovalUiState(
     val isLoading: Boolean = false,
     val isProcessing: Boolean = false,
@@ -25,17 +25,12 @@ data class AdminApprovalUiState(
 )
 
 /**
- * Khai báo AdminApprovalEvent trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ * Event một lần dùng cho snackbar/thông báo kết quả thao tác.
  */
-
 sealed class AdminApprovalEvent {
     data class ShowError(val message: String) : AdminApprovalEvent()
     data class ShowSuccess(val message: String) : AdminApprovalEvent()
 }
-
-/**
- * Khai báo AdminApprovalViewModel trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
- */
 
 class AdminApprovalViewModel(
     private val authRepository: AuthRepository = AuthRepository()
@@ -48,10 +43,8 @@ class AdminApprovalViewModel(
     val event = _event.asSharedFlow()
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải toàn bộ các học viên đang chờ admin duyệt lên giảng viên.
      */
-
     fun loadPendingRequests() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
@@ -62,20 +55,22 @@ class AdminApprovalViewModel(
                         pendingUsers = result.data
                     )
                 }
+
                 is ResultState.Error -> {
                     _uiState.value = _uiState.value.copy(isLoading = false)
                     _event.emit(AdminApprovalEvent.ShowError(result.message))
                 }
+
                 ResultState.Loading -> Unit
             }
         }
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Phê duyệt một học viên thành giảng viên.
+     *
+     * Hàm kiểm tra nhanh tính hợp lệ của admin và role hiện tại trước khi gọi repository.
      */
-
     fun approveInstructor(targetUser: User, adminUid: String) {
         if (adminUid.isBlank()) {
             viewModelScope.launch { _event.emit(AdminApprovalEvent.ShowError("Không tìm thấy tài khoản admin")) }
@@ -94,10 +89,12 @@ class AdminApprovalViewModel(
                     _event.emit(AdminApprovalEvent.ShowSuccess("Đã phê duyệt giảng viên: ${targetUser.fullName}"))
                     loadPendingRequests()
                 }
+
                 is ResultState.Error -> {
                     _event.emit(AdminApprovalEvent.ShowError(result.message))
                     _uiState.value = _uiState.value.copy(isProcessing = false)
                 }
+
                 ResultState.Loading -> Unit
             }
             _uiState.value = _uiState.value.copy(isProcessing = false)
@@ -105,10 +102,8 @@ class AdminApprovalViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Từ chối đơn đăng ký giảng viên và lưu lại lý do từ chối.
      */
-
     fun rejectInstructor(targetUser: User, adminUid: String, reason: String) {
         if (adminUid.isBlank()) {
             viewModelScope.launch { _event.emit(AdminApprovalEvent.ShowError("Không tìm thấy tài khoản admin")) }
@@ -122,10 +117,12 @@ class AdminApprovalViewModel(
                     _event.emit(AdminApprovalEvent.ShowSuccess("Đã từ chối đơn của: ${targetUser.fullName}"))
                     loadPendingRequests()
                 }
+
                 is ResultState.Error -> {
                     _event.emit(AdminApprovalEvent.ShowError(result.message))
                     _uiState.value = _uiState.value.copy(isProcessing = false)
                 }
+
                 ResultState.Loading -> Unit
             }
             _uiState.value = _uiState.value.copy(isProcessing = false)

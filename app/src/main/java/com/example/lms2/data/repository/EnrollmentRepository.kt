@@ -11,11 +11,14 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 
 /**
- * Triển khai repository EnrollmentRepository cho ứng dụng LMS Android.
- * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
- * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ * Repository quản lý collection `enrollments`.
+ *
+ * Đây là điểm truy cập dữ liệu chính cho những câu hỏi như:
+ * - user đã mua/ghi danh khóa học nào,
+ * - user đã ghi danh khóa này chưa,
+ * - admin cần xem dữ liệu enrollment toàn hệ thống,
+ * - recommendation cần nhận tín hiệu `ENROLL` sau một lần học viên tham gia khóa học.
  */
-
 class EnrollmentRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -24,10 +27,12 @@ class EnrollmentRepository {
     private val recommendationRepository = RecommendationRepository()
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tạo bản ghi ghi danh cho cặp `userId - courseId` nếu trước đó chưa tồn tại.
+     *
+     * Hàm được thiết kế idempotent để payment flow hoặc retry không làm nhân đôi enrollment.
+     * Sau khi ghi danh xong, cache của user được xóa và recommendation backend nhận thêm
+     * một event `ENROLL` để làm tín hiệu học từ hành vi thật.
      */
-
     suspend fun enrollCourse(userId: String, courseId: String): ResultState<Unit> {
         return try {
             val id = "${userId}_${courseId}"
@@ -42,6 +47,7 @@ class EnrollmentRepository {
                 courseId = courseId,
                 enrolledAt = System.currentTimeMillis()
             )
+
             enrollmentsCollection.document(id).set(enrollment).await()
             invalidateEnrollmentCache(userId)
             recommendationRepository.logRecommendationFeedback(
@@ -57,10 +63,11 @@ class EnrollmentRepository {
     }
 
     /**
-     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Kiểm tra nhanh user đã có enrollment cho khóa học hay chưa.
+     *
+     * Hàm này thường được gọi từ màn course detail, chatbot, cart và checkout
+     * để ẩn các thao tác mua học không còn phù hợp.
      */
-
     suspend fun isEnrolled(userId: String, courseId: String): ResultState<Boolean> {
         return try {
             val id = "${userId}_${courseId}"
@@ -72,10 +79,11 @@ class EnrollmentRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Trả về danh sách `courseId` mà user đã ghi danh.
+     *
+     * Đây là dạng dữ liệu gọn hơn `getUserEnrollments()` và phù hợp cho các use case
+     * chỉ cần membership check như recommendation hoặc disable nút mua.
      */
-
     suspend fun getEnrolledCourseIds(userId: String): ResultState<List<String>> {
         return try {
             when (val enrollments = getUserEnrollments(userId)) {
@@ -89,10 +97,11 @@ class EnrollmentRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tải toàn bộ enrollments của một user bằng cách ghép nhiều trang nhỏ.
+     *
+     * Bên ngoài ViewModel vẫn có cảm giác đang gọi một API "lấy tất cả",
+     * nhưng bên trong repository vẫn tận dụng pagination + cache ngắn hạn.
      */
-
     suspend fun getUserEnrollments(userId: String): ResultState<List<Enrollment>> {
         return try {
             val enrollments = mutableListOf<Enrollment>()
@@ -124,10 +133,11 @@ class EnrollmentRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tải toàn bộ enrollment của hệ thống cho các màn hình quản trị/thống kê.
+     *
+     * Khác với `getUserEnrollments`, hàm này không giới hạn theo user
+     * nên phù hợp cho dashboard admin và báo cáo tổng hợp.
      */
-
     suspend fun getAllEnrollments(): ResultState<List<Enrollment>> {
         return try {
             val snapshot = enrollmentsCollection
@@ -141,10 +151,11 @@ class EnrollmentRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy một trang enrollment của user, hỗ trợ cursor và cache.
+     *
+     * Cursor được lưu bằng `id` của enrollment cuối trang trước, nhờ đó UI có thể load more
+     * mà không cần nạp lại toàn bộ lịch sử ghi danh mỗi lần người dùng cuộn xuống.
      */
-
     suspend fun getUserEnrollmentsPage(
         userId: String,
         pageRequest: PageRequest = PageRequest()

@@ -23,11 +23,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Điều phối trạng thái giao diện trong AdminManagementViewModel.
- * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
- * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ * ViewModel điều phối toàn bộ màn quản trị tổng hợp.
+ *
+ * Đây là nơi gom state của nhiều tab admin:
+ * - dashboard summary,
+ * - danh sách user,
+ * - danh sách course,
+ * - dữ liệu enrollment/progress toàn hệ thống,
+ * - category management.
+ *
+ * Mục tiêu của lớp là giữ cho UI chỉ cần lắng nghe `uiState` và `event`,
+ * còn phần gọi repository, tổng hợp dữ liệu và xử lý thành công/thất bại
+ * được gom hết về đây.
  */
-
 data class AdminDashboardSummary(
     val totalUsers: Int = 0,
     val activeUsers: Int = 0,
@@ -37,9 +45,11 @@ data class AdminDashboardSummary(
 )
 
 /**
- * Khai báo AdminManagementUiState trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ * State tổng hợp cho các màn hình admin management.
+ *
+ * Mỗi cờ `isLoading...` đại diện cho một khối dữ liệu riêng, nhờ đó UI có thể
+ * hiển thị loading độc lập theo từng tab thay vì khóa cứng toàn bộ màn hình.
  */
-
 data class AdminManagementUiState(
     val isLoadingSummary: Boolean = false,
     val isLoadingUsers: Boolean = false,
@@ -56,17 +66,14 @@ data class AdminManagementUiState(
 )
 
 /**
- * Khai báo AdminManagementEvent trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
+ * Event one-shot cho admin UI.
+ *
+ * Dùng cho snackbar/toast hoặc các phản hồi ngắn hạn không nên lưu cứng vào state.
  */
-
 sealed class AdminManagementEvent {
     data class ShowError(val message: String) : AdminManagementEvent()
     data class ShowSuccess(val message: String) : AdminManagementEvent()
 }
-
-/**
- * Khai báo AdminManagementViewModel trong file này để phục vụ một trách nhiệm cụ thể của hệ thống.
- */
 
 class AdminManagementViewModel(
     private val authRepository: AuthRepository = AuthRepository(),
@@ -83,10 +90,11 @@ class AdminManagementViewModel(
     val event = _event.asSharedFlow()
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải dashboard summary cho admin.
+     *
+     * ViewModel gọi user list và course list, sau đó tự tổng hợp các chỉ số
+     * như tổng user, user active, số đơn giảng viên đang chờ duyệt và số course chưa publish.
      */
-
     fun loadSummary() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingSummary = true)
@@ -114,7 +122,9 @@ class AdminManagementViewModel(
                 summary = AdminDashboardSummary(
                     totalUsers = users.size,
                     activeUsers = users.count { it.isActive },
-                    pendingInstructorRequests = users.count { it.instructorRequestStatus == InstructorApplicationStatus.PENDING },
+                    pendingInstructorRequests = users.count {
+                        it.instructorRequestStatus == InstructorApplicationStatus.PENDING
+                    },
                     totalCourses = courses.size,
                     unpublishedCourses = courses.count { !it.isPublished }
                 )
@@ -123,10 +133,8 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải danh sách user cho tab quản lý tài khoản.
      */
-
     fun loadUsers() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingUsers = true)
@@ -146,10 +154,8 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải danh sách toàn bộ course cho tab admin courses.
      */
-
     fun loadCourses() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingCourses = true)
@@ -169,10 +175,11 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải dữ liệu học tập tổng hợp cho admin.
+     *
+     * `Enrollment` và `Progress` được lấy song song để giảm thời gian chờ
+     * của tab learning analytics.
      */
-
     fun loadLearningData() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingLearningData = true)
@@ -204,10 +211,10 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải danh mục cho tab category management.
+     *
+     * `forceRefresh` được dùng sau các thao tác create/delete để tránh UI dùng lại cache cũ.
      */
-
     fun loadCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingCategories = true)
@@ -230,10 +237,11 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tạo mới một category từ màn admin.
+     *
+     * Sau khi tạo thành công, ViewModel reload category list để UI luôn phản ánh
+     * đúng dữ liệu mới thay vì tự chèn local state thủ công.
      */
-
     fun createCategory(name: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessing = true)
@@ -254,10 +262,8 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa một category rồi tải lại danh sách.
      */
-
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessing = true)
@@ -278,10 +284,11 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Khóa hoặc mở khóa tài khoản người dùng.
+     *
+     * Sau khi thao tác xong, ViewModel refresh cả danh sách user lẫn dashboard summary
+     * vì hai vùng này cùng phụ thuộc vào trạng thái `isActive`.
      */
-
     fun toggleUserActive(user: User) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessing = true)
@@ -308,10 +315,11 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Publish hoặc unpublish một khóa học.
+     *
+     * Thành công xong sẽ reload course list và dashboard vì hai khối này
+     * cùng phụ thuộc vào số course public/chưa public.
      */
-
     fun toggleCoursePublished(course: Course) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessing = true)
@@ -338,10 +346,11 @@ class AdminManagementViewModel(
     }
 
     /**
-     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tạo nhanh tài khoản giảng viên từ phía admin.
+     *
+     * Đây là đường đi khác với luồng “học viên nộp đơn xin làm giảng viên”.
+     * Sau khi tạo xong, ViewModel refresh cả danh sách user lẫn summary.
      */
-
     fun createInstructorAccount(
         adminUid: String,
         fullName: String,

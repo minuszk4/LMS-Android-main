@@ -19,7 +19,18 @@ import kotlinx.coroutines.tasks.await
  */
 
 class NotificationRepository {
+    // Repository này là đầu mối chung cho mọi loại thông báo trong app:
+    // course update, nhắc học, quiz, payment và các system message khác.
+    // Ngoài việc ghi document vào Firestore, lớp còn chuẩn hóa template nội dung
+    // để các luồng nghiệp vụ khác không phải tự dựng tiêu đề/body lặp lại.
 
+    /**
+     * Mẫu nội dung thông báo đã được chuẩn hóa.
+     *
+     * Repository dùng lớp nhỏ này để tách phần "chính sách dựng nội dung"
+     * khỏi phần ghi document Firestore, giúp các luồng payment, course update
+     * và quiz chỉ cần lấy template rồi tái sử dụng.
+     */
     data class NotificationTemplate(
         val title: String,
         val body: String
@@ -30,12 +41,14 @@ class NotificationRepository {
     private val enrollmentsCollection = firestore.collection("enrollments")
     private val notificationCachePrefix = "notifications:user"
 
-    /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     suspend fun getNotifications(userId: String): ResultState<List<NotificationItem>> {
+        /**
+         * Tải toàn bộ thông báo của người dùng bằng cách ghép nhiều trang nhỏ.
+         *
+         * Hàm này là wrapper mức cao cho UI đơn giản: thay vì để ViewModel tự xử lý
+         * cursor phân trang, repository lặp qua `getNotificationsPage()` cho đến khi
+         * hết dữ liệu rồi trả về một danh sách hoàn chỉnh.
+         */
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
@@ -67,15 +80,18 @@ class NotificationRepository {
         }
     }
 
-    /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     suspend fun getNotificationsPage(
         userId: String,
         pageRequest: PageRequest = PageRequest()
     ): ResultState<PageResult<NotificationItem>> {
+        /**
+         * Tải một trang thông báo theo `createdAt` giảm dần.
+         *
+         * Đây là API gốc để các màn hình có thể infinite scroll. Repository hỗ trợ:
+         * - cache theo từng user và cursor,
+         * - lấy thêm một bản ghi để suy ra `hasMore`,
+         * - chuyển dữ liệu Firestore thuần sang `NotificationItem`.
+         */
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
@@ -134,12 +150,16 @@ class NotificationRepository {
         }
     }
 
-    /**
-     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     suspend fun addNotification(notification: NotificationItem): ResultState<Unit> {
+        /**
+         * Ghi một thông báo đơn lẻ vào collection `notifications`.
+         *
+         * Hàm này được tái sử dụng ở nhiều luồng như:
+         * - payment thành công,
+         * - nhắc học bài,
+         * - thông báo quiz mới,
+         * - các loại system message khác.
+         */
         if (notification.userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
         if (notification.title.isBlank()) return ResultState.Error("Thiếu tiêu đề thông báo")
 
@@ -173,12 +193,13 @@ class NotificationRepository {
         }
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     suspend fun markAsRead(notificationId: String): ResultState<Unit> {
+        /**
+         * Đánh dấu một thông báo đã đọc.
+         *
+         * Sau khi update Firestore, repository invalidates toàn bộ cache thông báo
+         * để các màn hình lần sau luôn đọc trạng thái mới nhất.
+         */
         if (notificationId.isBlank()) return ResultState.Error("Thiếu mã thông báo")
 
         return try {
@@ -195,12 +216,13 @@ class NotificationRepository {
         }
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     suspend fun markAllAsRead(userId: String): ResultState<Unit> {
+        /**
+         * Đánh dấu toàn bộ thông báo chưa đọc của một user thành đã đọc.
+         *
+         * Batch write được dùng ở đây vì thao tác có thể chạm nhiều document cùng lúc,
+         * và trạng thái "đã đọc hết" chỉ có ý nghĩa khi toàn bộ update cùng thành công.
+         */
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
@@ -226,17 +248,22 @@ class NotificationRepository {
         }
     }
 
-    /**
-     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     suspend fun addNotificationToCourseEnrollments(
         courseId: String,
         title: String,
         body: String,
         type: NotificationType
     ): ResultState<Unit> {
+        /**
+         * Gửi cùng một thông báo tới toàn bộ học viên đã enroll một khóa học.
+         *
+         * Hàm này phục vụ các tình huống như:
+         * - giảng viên cập nhật khóa học,
+         * - có quiz mới,
+         * - có thông báo chung cần broadcast theo course.
+         *
+         * Dữ liệu được ghi theo từng batch nhỏ để nằm trong giới hạn write batch của Firestore.
+         */
         if (courseId.isBlank()) return ResultState.Error("Thiếu thông tin khóa học")
         if (title.isBlank()) return ResultState.Error("Thiếu tiêu đề thông báo")
 
@@ -293,12 +320,14 @@ class NotificationRepository {
         return "$notificationCachePrefix:$userId:${pageRequest.normalizedPageSize}:$cursorPart"
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     fun purchaseSuccessTemplate(itemCount: Int, courseTitle: String? = null): NotificationTemplate {
+        /**
+         * Dựng mẫu thông báo cho sự kiện thanh toán thành công.
+         *
+         * Template có hai nhánh:
+         * - mua một khóa cụ thể,
+         * - mua nhiều khóa trong một đơn.
+         */
         val normalizedCount = itemCount.coerceAtLeast(1)
         val body = if (normalizedCount == 1 && !courseTitle.isNullOrBlank()) {
             "Bạn đã thanh toán thành công khóa học $courseTitle."
@@ -311,24 +340,20 @@ class NotificationRepository {
         )
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     fun courseUpdatedTemplate(courseTitle: String): NotificationTemplate {
+        /**
+         * Dựng mẫu thông báo khi khóa học có thay đổi nội dung.
+         */
         return NotificationTemplate(
             title = "Khóa học được cập nhật",
             body = "Giảng viên vừa cập nhật nội dung khóa $courseTitle."
         )
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     fun quizCreatedTemplate(quizTitle: String, courseTitle: String? = null): NotificationTemplate {
+        /**
+         * Dựng mẫu thông báo khi có quiz mới.
+         */
         val body = if (!courseTitle.isNullOrBlank()) {
             "Quiz $quizTitle đã sẵn sàng trong khóa $courseTitle."
         } else {
@@ -340,12 +365,12 @@ class NotificationRepository {
         )
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     fun studyReminderTemplate(courseTitle: String? = null): NotificationTemplate {
+        /**
+         * Dựng mẫu thông báo nhắc học bài.
+         *
+         * Nếu biết tên khóa học, nội dung sẽ cụ thể hơn để tăng khả năng người dùng quay lại học.
+         */
         val normalizedCourseTitle = courseTitle?.trim().orEmpty()
         val body = if (normalizedCourseTitle.isNotBlank()) {
             "Bạn đã đăng ký khóa $normalizedCourseTitle. Dành 15-20 phút hôm nay để bắt đầu bài học đầu tiên nhé."
@@ -358,16 +383,17 @@ class NotificationRepository {
         )
     }
 
-    /**
-     * Thêm dữ liệu hoặc đối tượng mới vào luồng xử lý hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     suspend fun addStudyReminderIfNeeded(
         userId: String,
         courseTitle: String? = null,
         cooldownHours: Int = 24
     ): ResultState<Unit> {
+        /**
+         * Tạo thông báo nhắc học nếu trong khoảng cooldown chưa có reminder tương tự.
+         *
+         * Đây là cơ chế chống spam: cùng một người dùng sẽ không bị nhận dồn dập nhiều
+         * thông báo nhắc học trong một khoảng thời gian ngắn.
+         */
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
@@ -400,15 +426,14 @@ class NotificationRepository {
             ResultState.Error(e.message ?: "Tạo thông báo nhắc học thất bại")
         }
     }
-
-
     // Dữ liệu mẫu để demo UI khi cần.
-    /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
-     */
-
     suspend fun getNotificationsMock(userId: String): ResultState<List<NotificationItem>> {
+        /**
+         * Trả về danh sách thông báo giả lập để demo giao diện hoặc test nhanh.
+         *
+         * Hàm này tách khỏi dữ liệu thật để UI có thể phát triển độc lập ngay cả khi
+         * collection `notifications` chưa có dữ liệu phong phú.
+         */
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {

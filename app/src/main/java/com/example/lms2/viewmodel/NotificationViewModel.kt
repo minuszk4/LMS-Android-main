@@ -16,11 +16,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Điều phối trạng thái giao diện trong NotificationViewModel.
- * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
- * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ * ViewModel cho màn hình thông báo.
+ *
+ * Nhiệm vụ chính:
+ * - tải trang thông báo đầu tiên hoặc tải thêm;
+ * - đánh dấu từng thông báo hay toàn bộ thông báo là đã đọc;
+ * - giữ `cursor` hiện tại để hỗ trợ pagination.
  */
-
 class NotificationViewModel(
     private val repository: NotificationRepository = NotificationRepository()
 ) : ViewModel() {
@@ -34,10 +36,10 @@ class NotificationViewModel(
     private var lastUserId: String = ""
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Khởi tạo màn hình thông báo.
+     *
+     * Nếu cùng một user đã tải trước đó thì tránh gọi lại không cần thiết.
      */
-
     fun init(userId: String) {
         if (userId.isBlank()) return
         if (_uiState.value.hasLoadedOnce && lastUserId == userId) return
@@ -45,20 +47,16 @@ class NotificationViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Buộc tải lại trang đầu của danh sách thông báo.
      */
-
     fun refresh(userId: String) {
         if (userId.isBlank()) return
         loadNotifications(userId = userId, refresh = true)
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Đánh dấu một thông báo cụ thể là đã đọc và cập nhật ngay trên state cục bộ.
      */
-
     fun markAsRead(notificationId: String) {
         if (notificationId.isBlank()) return
 
@@ -87,10 +85,8 @@ class NotificationViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Đánh dấu toàn bộ danh sách hiện tại là đã đọc.
      */
-
     fun markAllAsRead(userId: String) {
         if (userId.isBlank()) return
         if (_uiState.value.unreadCount == 0) return
@@ -168,10 +164,8 @@ class NotificationViewModel(
     }
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Tải thêm một trang thông báo kế tiếp theo `currentCursor`.
      */
-
     fun loadMore(userId: String) {
         if (userId.isBlank()) return
         val currentState = _uiState.value
@@ -196,10 +190,12 @@ class NotificationViewModel(
                         )
                     }
                 }
+
                 is ResultState.Error -> {
                     _uiState.update { it.copy(isLoadingMore = false) }
                     _event.emit(NotificationEvent.ShowError(result.message))
                 }
+
                 else -> {
                     _uiState.update { it.copy(isLoadingMore = false) }
                 }
@@ -207,4 +203,3 @@ class NotificationViewModel(
         }
     }
 }
-

@@ -1,7 +1,7 @@
 package com.example.lms2.data.repository
 
-import com.example.lms2.data.cache.RepositoryCache
 import com.example.lms2.data.cache.CacheTTL
+import com.example.lms2.data.cache.RepositoryCache
 import com.example.lms2.data.model.Course
 import com.example.lms2.data.model.NotificationType
 import com.example.lms2.data.paging.PageRequest
@@ -13,11 +13,14 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 
 /**
- * Triển khai repository CourseRepository cho ứng dụng LMS Android.
- * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
- * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ * Repository lõi cho thực thể `Course`.
+ *
+ * Ngoài CRUD cơ bản, lớp này còn gánh nhiều nghiệp vụ quan trọng:
+ * - tách cache cho luồng admin và luồng public,
+ * - gửi thông báo khi khóa học thay đổi,
+ * - dọn dữ liệu phụ thuộc khi xóa course,
+ * - hỗ trợ tìm kiếm, phân trang và cập nhật thống kê enrollment.
  */
-
 class CourseRepository {
 
     companion object {
@@ -40,10 +43,11 @@ class CourseRepository {
     private val courseUpdateNotificationCooldownMs = 30 * 60 * 1000L
 
     /**
-     * Tạo khóa học mới trong collection `courses`.
-     * Repository tự sinh document id, gán thời điểm tạo/cập nhật và xóa cache danh sách khóa học liên quan.
+     * Tạo mới một khóa học.
+     *
+     * Repository tự sinh document id và timestamp trước khi ghi xuống Firestore,
+     * sau đó xóa cache để các màn khám phá hoặc admin nhìn thấy khóa học mới nhất.
      */
-
     suspend fun createCourse(course: Course): ResultState<String> {
         return try {
             val docRef = coursesCollection.document()
@@ -62,10 +66,12 @@ class CourseRepository {
     }
 
     /**
-     * Cập nhật thông tin khóa học do giảng viên chỉnh sửa.
-     * Sau khi cập nhật, cache khóa học được invalidate và học viên đã ghi danh có thể nhận thông báo khóa học thay đổi.
+     * Cập nhật thông tin khóa học từ phía giảng viên hoặc admin.
+     *
+     * Sau khi ghi Firestore, repository có thể gửi thông báo cho toàn bộ học viên
+     * đã ghi danh. Một lớp throttle đơn giản theo `courseId` được dùng để tránh spam
+     * notification nếu giảng viên chỉnh sửa nhiều lần liên tiếp trong thời gian ngắn.
      */
-
     suspend fun updateCourse(course: Course): ResultState<Unit> {
         return try {
             RepositoryCache.invalidateByPrefix(ADMIN_COURSE_CACHE_PREFIX)
@@ -90,7 +96,6 @@ class CourseRepository {
             RepositoryCache.invalidateByPrefix(PUBLISHED_COURSE_CACHE_PREFIX)
 
             val shouldNotify = shouldNotifyCourseUpdate(course.id, now)
-
             if (shouldNotify) {
                 runCatching {
                     val template = notificationRepository.courseUpdatedTemplate(course.title)
@@ -123,10 +128,11 @@ class CourseRepository {
     }
 
     /**
-     * Xóa khóa học và các dữ liệu phụ thuộc của khóa học đó.
-     * Các document lesson, quiz, enrollment, review và progress được gom batch theo chunk để không vượt giới hạn Firestore.
+     * Xóa khóa học và toàn bộ dữ liệu phụ thuộc trực tiếp của khóa đó.
+     *
+     * Các collection như lesson, quiz, review, progress... được gom reference
+     * rồi xóa theo batch nhỏ để tránh vượt giới hạn thao tác của Firestore.
      */
-
     suspend fun deleteCourse(courseId: String): ResultState<Unit> {
         return try {
             val refsToDelete = mutableListOf<DocumentReference>()
@@ -172,9 +178,8 @@ class CourseRepository {
     }
 
     /**
-     * Lấy chi tiết một khóa học theo document id.
+     * Lấy chi tiết một khóa học theo `courseId`.
      */
-
     suspend fun getCourseById(courseId: String): ResultState<Course> {
         return try {
             val snapshot = coursesCollection
@@ -193,10 +198,11 @@ class CourseRepository {
     }
 
     /**
-     * Tìm kiếm khóa học đã phát hành theo tiêu đề, mô tả hoặc tên giảng viên.
-     * Firestore lấy tập khóa học published trước, sau đó lọc chuỗi phía client.
+     * Tìm kiếm khóa học đã publish theo tiêu đề, mô tả hoặc tên giảng viên.
+     *
+     * Firestore hiện chưa có search full-text nên repository lấy tập published
+     * rồi lọc chuỗi ở phía client cho các truy vấn đơn giản.
      */
-
     suspend fun searchCourses(query: String): ResultState<List<Course>> {
         return try {
             if (query.isBlank()) {
@@ -211,11 +217,10 @@ class CourseRepository {
             val allCourses = snapshot.toObjects(Course::class.java)
             val lowerQuery = query.lowercase()
 
-            // Filter courses by query in title, description, or instructor name
             val filteredCourses = allCourses.filter { course ->
                 course.title.lowercase().contains(lowerQuery) ||
-                course.description.lowercase().contains(lowerQuery) ||
-                course.instructorName.lowercase().contains(lowerQuery)
+                    course.description.lowercase().contains(lowerQuery) ||
+                    course.instructorName.lowercase().contains(lowerQuery)
             }
 
             ResultState.Success(filteredCourses)
@@ -225,9 +230,8 @@ class CourseRepository {
     }
 
     /**
-     * Lấy danh sách khóa học thuộc một giảng viên, sắp xếp mới nhất trước.
+     * Lấy danh sách khóa học của một giảng viên, ưu tiên khóa mới tạo gần đây hơn.
      */
-
     suspend fun getCoursesByInstructor(instructorId: String): ResultState<List<Course>> {
         return try {
             val snapshot = coursesCollection
@@ -243,9 +247,8 @@ class CourseRepository {
     }
 
     /**
-     * Lấy toàn bộ khóa học cho màn quản trị bằng cách duyệt qua các trang dữ liệu.
+     * Tải toàn bộ khóa học cho màn hình admin bằng cách ghép nhiều trang nhỏ.
      */
-
     suspend fun getAllCoursesForAdmin(): ResultState<List<Course>> {
         return try {
             val courses = mutableListOf<Course>()
@@ -277,8 +280,10 @@ class CourseRepository {
 
     /**
      * Lấy một trang khóa học cho admin, có hỗ trợ cursor và cache ngắn hạn.
+     *
+     * Dữ liệu admin được cache riêng với luồng public để tránh pha trộn giữa course
+     * đã publish và course nháp/chưa publish.
      */
-
     suspend fun getAllCoursesForAdminPage(
         pageRequest: PageRequest = PageRequest()
     ): ResultState<PageResult<Course>> {
@@ -327,9 +332,8 @@ class CourseRepository {
     }
 
     /**
-     * Lấy toàn bộ khóa học đã publish bằng cách duyệt qua các trang dữ liệu.
+     * Tải toàn bộ khóa học đã publish bằng cách ghép các trang nhỏ.
      */
-
     suspend fun getAllPublishedCourses(): ResultState<List<Course>> {
         return try {
             val courses = mutableListOf<Course>()
@@ -361,9 +365,10 @@ class CourseRepository {
 
     /**
      * Lấy một trang khóa học đã publish cho màn khám phá/tìm kiếm.
-     * Kết quả dùng cursor để tải thêm và cache để giảm số lần đọc Firestore.
+     *
+     * Kết quả dùng cursor để load more và cache để giảm số lần đọc Firestore
+     * cho những màn hình truy cập thường xuyên như home hoặc browse courses.
      */
-
     suspend fun getAllPublishedCoursesPage(
         pageRequest: PageRequest = PageRequest()
     ): ResultState<PageResult<Course>> {
@@ -421,14 +426,13 @@ class CourseRepository {
     }
 
     /**
-     * Cập nhật trạng thái xuất bản của khóa học.
-     * Khi publish/unpublish thay đổi, cache danh sách khóa học public và admin đều được xóa.
+     * Cập nhật trạng thái publish/unpublish của khóa học.
+     *
+     * Sau khi đổi trạng thái, repository xóa cả cache public và admin
+     * để tránh tình trạng course vẫn còn xuất hiện ở sai danh sách.
      */
-
     suspend fun updatePublishStatus(courseId: String, isPublished: Boolean): ResultState<Unit> {
         return try {
-            // Cập nhật trường `isPublished` của khóa học trong Firestore, đồng thời cập nhật `updatedAt` để đảm bảo thứ tự sắp xếp và kích hoạt cơ chế cache invalidation dựa trên thời gian cập nhật
-            // Sau khi cập nhật, cần làm mới cache liên quan đến danh sách khóa học đã xuất bản và danh sách khóa học của admin để đảm bảo dữ liệu hiển thị ở tầng giao diện là mới nhất
             coursesCollection
                 .document(courseId)
                 .update(
@@ -438,7 +442,7 @@ class CourseRepository {
                     )
                 )
                 .await()
-            // Nếu khóa học vừa được xuất bản, cần gửi thông báo đến tất cả học viên đã đăng ký khóa học để thông báo về việc khóa học đã sẵn sàng
+
             RepositoryCache.invalidateByPrefix(PUBLISHED_COURSE_CACHE_PREFIX)
             RepositoryCache.invalidateByPrefix(ADMIN_COURSE_CACHE_PREFIX)
             ResultState.Success(Unit)
@@ -448,21 +452,16 @@ class CourseRepository {
     }
 
     /**
-     * Tăng số lượng ghi danh của khóa học trong transaction.
-     * Hàm được dùng khi học viên đăng ký thành công để tránh mất cập nhật đồng thời.
+     * Tăng `enrollmentCount` theo transaction để tránh mất cập nhật khi nhiều học viên
+     * mua cùng lúc hoặc payment webhook retry nhiều lần gần nhau.
      */
-
     suspend fun incrementEnrollment(courseId: String): ResultState<Unit> {
         return try {
             firestore.runTransaction { transaction ->
                 val docRef = coursesCollection.document(courseId)
                 val snapshot = transaction.get(docRef)
                 val current = snapshot.getLong("enrollmentCount") ?: 0
-                transaction.update(
-                    docRef,
-                    "enrollmentCount",
-                    current + 1
-                )
+                transaction.update(docRef, "enrollmentCount", current + 1)
             }.await()
             ResultState.Success(Unit)
         } catch (e: Exception) {

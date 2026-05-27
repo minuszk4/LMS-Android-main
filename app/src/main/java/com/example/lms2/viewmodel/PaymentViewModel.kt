@@ -11,6 +11,7 @@ import com.example.lms2.util.CheckoutSource
 import com.example.lms2.util.PaymentEvent
 import com.example.lms2.util.PaymentUiState
 import com.example.lms2.util.ResultState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -22,15 +23,16 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * Điều phối trạng thái giao diện trong PaymentViewModel.
- * File này kết nối màn hình Compose với repository, cập nhật `uiState` và phát event một lần cho các thao tác điều hướng hoặc thông báo.
- * Đây là nơi tập trung phần lớn logic trình bày và điều phối nghiệp vụ ở phía ứng dụng Android.
+ * ViewModel điều phối toàn bộ màn hình checkout ở phía Android.
+ *
+ * Thành phần này chịu trách nhiệm:
+ * - chuẩn bị dữ liệu khóa học sẽ thanh toán;
+ * - gửi yêu cầu tạo order sang repository;
+ * - theo dõi đơn đang chờ thanh toán và phát event một lần cho UI.
  */
-
 class PaymentViewModel(
     private val cartRepository: CartRepository = CartRepository(),
     private val courseRepository: CourseRepository = CourseRepository(),
@@ -45,10 +47,11 @@ class PaymentViewModel(
     private var pollingJob: Job? = null
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Khởi tạo màn hình checkout theo nguồn vào hiện tại.
+     *
+     * Hàm chuẩn hóa danh sách course ID, reset trạng thái thanh toán cũ
+     * và nạp dữ liệu hiển thị từ cart hoặc từ luồng mua trực tiếp.
      */
-
     fun initCheckout(
         userId: String,
         selectedCourseIds: List<String>,
@@ -63,7 +66,7 @@ class PaymentViewModel(
             }
             return
         }
-        // Cập nhật `uiState` để hiển thị trạng thái đang tải và lưu lại nguồn checkout cùng với danh sách ID khóa học đã được chuẩn hóa. Điều này giúp giao diện có thể hiển thị thông tin phù hợp dựa trên nguồn checkout (ví dụ: nếu đến từ giỏ hàng thì có thể hiển thị thông tin giỏ hàng, nếu đến từ trang khóa học thì có thể hiển thị thông tin khóa học trực tiếp) và cũng đảm bảo rằng danh sách ID khóa học đã được làm sạch và chuẩn hóa trước khi sử dụng cho các thao tác tiếp theo.
+
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -80,7 +83,7 @@ class PaymentViewModel(
                 CheckoutSource.CART -> loadItemsFromCart(userId, normalizedIds)
                 CheckoutSource.DIRECT -> loadItemsDirect(userId, normalizedIds)
             }
-            // Dựa trên kết quả tải dữ liệu, cập nhật `uiState` để hiển thị thông tin khóa học đã chọn hoặc hiển thị lỗi nếu có vấn đề xảy ra trong quá trình tải. Nếu tải thành công, `selectedItems` sẽ được cập nhật với danh sách các mục đã chọn để hiển thị ở giao diện thanh toán. Nếu có lỗi, `selectedItems` sẽ được đặt lại thành danh sách trống và phát một event để hiển thị thông báo lỗi cho người dùng.
+
             when (loadResult) {
                 is ResultState.Success -> {
                     _uiState.update {
@@ -113,7 +116,8 @@ class PaymentViewModel(
                     ResultState.Error("Một số khóa học đã không còn trong giỏ hàng, vui lòng quay lại")
                 } else {
                     try {
-                        // Tải thông tin khóa học mới nhất cho tất cả các mục đã chọn để đảm bảo rằng người dùng sẽ thanh toán đúng số tiền dựa trên thông tin khóa học mới nhất, đồng thời tránh các vấn đề liên quan đến dữ liệu lỗi thời trong giỏ hàng.
+                        // Đồng bộ lại giá/title/thumbnail từ course hiện tại thay vì tin hoàn toàn
+                        // vào snapshot cũ đang nằm trong cart.
                         val latestCoursesById = coroutineScope {
                             selectedItems.map { item ->
                                 async {
@@ -126,7 +130,6 @@ class PaymentViewModel(
                             }.awaitAll().associateBy { it.id }
                         }
 
-                        // Override cart snapshot values with latest course values.
                         val normalizedItems = selectedItems.map { item ->
                             val latestCourse = latestCoursesById[item.courseId]
                             if (latestCourse != null) {
@@ -159,6 +162,8 @@ class PaymentViewModel(
         selectedCourseIds: List<String>
     ): ResultState<List<CartItem>> {
         return try {
+            // Luồng direct buy không có cart item thật trong Firestore, nên ViewModel dựng
+            // danh sách tạm theo contract `CartItem` để UI checkout dùng chung một kiểu dữ liệu.
             val items = coroutineScope {
                 selectedCourseIds.map { courseId ->
                     async {
@@ -193,19 +198,20 @@ class PaymentViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Đổi phương thức thanh toán người dùng đang chọn.
      */
-
     fun selectPaymentMethod(method: PaymentMethod) {
         _uiState.update { it.copy(paymentMethod = method) }
     }
 
     /**
-     * Gửi dữ liệu biểu mẫu hoặc yêu cầu nghiệp vụ để hệ thống tiếp nhận.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Gửi yêu cầu checkout.
+     *
+     * Nếu tạo order thành công:
+     * - đơn đã `SUCCESS` thì hoàn tất ngay;
+     * - ví điện tử thì tạo thêm link MoMo rồi bắt đầu polling;
+     * - chuyển khoản thì giữ `pendingOrder` để UI chờ backend xác nhận.
      */
-
     fun submitCheckout(userId: String) {
         if (userId.isBlank()) return
         val state = _uiState.value
@@ -233,9 +239,7 @@ class PaymentViewModel(
                     courseIds = state.selectedCourseIds
                 )
             }
-            // Dựa trên kết quả checkout, cập nhật `uiState` để phản ánh trạng thái thanh toán hiện tại và phát event tương ứng để giao diện có thể điều hướng hoặc hiển thị thông báo cho người dùng. Nếu checkout thành công và phương thức thanh toán là ví điện tử, sẽ tiếp tục tạo liên kết thanh toán MoMo và bắt đầu quá trình polling để kiểm tra trạng thái thanh toán. Nếu có lỗi xảy ra trong quá trình checkout, sẽ cập nhật `uiState` để kết thúc trạng thái đang gửi và phát event để hiển thị lỗi cho người dùng.
-            // Quan trọng là phải xử lý tất cả các trường hợp kết quả (thành công, lỗi, và các trạng thái khác) để đảm bảo rằng giao diện luôn phản ánh đúng trạng thái của quá trình thanh toán và cung cấp trải nghiệm người dùng mượt mà và rõ ràng.
-            // Ngoài ra, cần đảm bảo rằng tất cả các thao tác cập nhật `uiState` và phát event đều được thực hiện trong phạm vi của `viewModelScope` để đảm bảo rằng chúng sẽ được hủy bỏ đúng cách khi ViewModel bị hủy, tránh các vấn đề liên quan đến memory leak hoặc cập nhật giao diện sau khi ViewModel đã bị hủy.
+
             when (result) {
                 is ResultState.Success -> {
                     val order = result.data
@@ -257,6 +261,7 @@ class PaymentViewModel(
                                     _event.emit(PaymentEvent.ShowError("Đã tạo liên kết MoMo. Bấm 'Mở ứng dụng MoMo' để tiếp tục."))
                                     startPollingPaymentStatus(order.id)
                                 }
+
                                 is ResultState.Error -> {
                                     _uiState.update {
                                         it.copy(
@@ -267,6 +272,7 @@ class PaymentViewModel(
                                     }
                                     _event.emit(PaymentEvent.ShowError(momoResult.message))
                                 }
+
                                 else -> Unit
                             }
                         } else {
@@ -295,11 +301,10 @@ class PaymentViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     * Hàm này có thể được gọi khi người dùng muốn kiểm tra trạng thái thanh toán của đơn hàng đang chờ xử lý, đặc biệt là trong trường hợp thanh toán qua chuyển khoản ngân hàng hoặc ví điện tử, nơi mà quá trình thanh toán có thể mất một khoảng thời gian trước khi được xác nhận. Khi gọi hàm này, sẽ kiểm tra trạng thái thanh toán hiện tại của đơn hàng và cập nhật `uiState` cũng như phát event tương ứng để giao diện có thể phản ánh đúng trạng thái thanh toán cho người dùng.
+     * Kiểm tra lại ngay trạng thái của đơn đang chờ.
+     *
+     * Đây là nhánh refresh thủ công; client chỉ đọc lại trạng thái mới nhất của order.
      */
-
     fun checkPendingPaymentNow() {
         val pendingOrderId = _uiState.value.pendingOrder?.id.orEmpty()
         if (pendingOrderId.isBlank()) return
@@ -335,12 +340,12 @@ class PaymentViewModel(
             }
         }
     }
-    /*
-        * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-        * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-        * Hàm này được gọi để bắt đầu quá trình polling kiểm tra trạng thái thanh toán
-        * của đơn hàng đang chờ xử lý. Quá trình này sẽ lặp lại trong một khoảng thời gian nhất định (ví dụ: 2 phút) với khoảng delay giữa các lần kiểm tra (ví dụ: 5 giây) để liên tục cập nhật trạng thái thanh toán cho người dùng mà không cần họ phải tự tay bấm nút kiểm tra. Nếu trong quá trình polling phát hiện rằng đơn hàng đã được thanh toán thành công, sẽ cập nhật `uiState` và phát event để thông báo cho giao diện về kết quả này. Nếu có lỗi xảy ra hoặc sau khi hết thời gian polling mà đơn hàng vẫn chưa được thanh toán, sẽ cập nhật `uiState` để kết thúc trạng thái đang kiểm tra và có thể phát event để thông báo cho người dùng nếu cần.
-        * Quan trọng là phải đảm bảo rằng quá trình polling được hủy bỏ đúng cách khi ViewModel bị hủy để tránh các vấn đề liên quan đến memory leak hoặc cập nhật giao diện sau khi ViewModel đã bị hủy.
+
+    /**
+     * Poll trạng thái thanh toán trong tối đa khoảng 2 phút.
+     *
+     * Mỗi 5 giây ViewModel hỏi lại repository. Nếu đơn chuyển sang `SUCCESS`
+     * thì job dừng ngay và UI được điều hướng sang màn hình thành công.
      */
     private fun startPollingPaymentStatus(orderId: String) {
         pollingJob?.cancel()
@@ -348,14 +353,10 @@ class PaymentViewModel(
             repeat(24) {
                 if (!isActive) return@launch
                 delay(5000)
-                // Tự động kiểm tra trạng thái thanh toán của đơn hàng đang chờ xử lý mà không cần người dùng phải bấm nút kiểm tra. Điều này giúp cải thiện trải nghiệm người dùng bằng cách cung cấp thông tin cập nhật về trạng thái thanh toán một cách liên tục và tự động.
-                // Dựa trên kết quả kiểm tra trạng thái thanh toán, cập nhật `uiState` và phát event tương ứng để giao diện có thể phản ánh đúng trạng thái thanh toán cho người dùng. Nếu đơn hàng đã được thanh toán thành công, sẽ cập nhật `uiState` để kết thúc trạng thái đang kiểm tra và phát event để thông báo cho giao diện về kết quả này. Nếu có lỗi xảy ra trong quá trình kiểm tra, sẽ cập nhật `uiState` để kết thúc trạng thái đang kiểm tra và có thể phát event để thông báo cho người dùng nếu cần.
-                // Quan trọng là phải xử lý tất cả các trường hợp kết quả (thành công, lỗi, và các trạng thái khác) để đảm bảo rằng giao diện luôn phản ánh đúng trạng thái của quá trình thanh toán và cung cấp trải nghiệm người dùng mượt mà và rõ ràng.
 
                 when (val result = paymentRepository.tryAutoConfirmPendingOrder(orderId)) {
                     is ResultState.Success -> {
                         val order = result.data
-                        // Nếu đơn hàng đã được thanh toán thành công, cập nhật `uiState` để kết thúc trạng thái đang kiểm tra và phát event để thông báo cho giao diện về kết quả này. Nếu đơn hàng vẫn chưa được thanh toán, chỉ cần cập nhật `uiState` với thông tin đơn hàng mới nhất mà không cần phát event nào cả, vì người dùng
                         if (order.paymentStatus == com.example.lms2.data.model.PaymentStatus.SUCCESS) {
                             _uiState.update {
                                 it.copy(
@@ -384,13 +385,10 @@ class PaymentViewModel(
     }
 
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Dừng polling để tránh giữ coroutine sống sau khi rời màn hình.
      */
-
     override fun onCleared() {
         pollingJob?.cancel()
         super.onCleared()
     }
 }
-

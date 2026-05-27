@@ -34,35 +34,32 @@ class ChatbotViewModel(
     private var lastUserId: String = ""
     private var currentUserId: String = ""
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun init(userId: String) {
+        /**
+         * Khởi tạo chatbot cho một user.
+         *
+         * Nếu dữ liệu của user này đã được nạp trước đó trong cùng vòng đời ViewModel
+         * thì hàm sẽ không tải lại để tránh nhấp nháy giao diện không cần thiết.
+         */
         if (userId.isBlank()) return
         currentUserId = userId
         if (_uiState.value.hasLoadedOnce && lastUserId == userId) return
         loadSessionsAndMessages(userId)
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun refresh(userId: String) {
+        /**
+         * Làm mới danh sách session và message từ nguồn dữ liệu thật.
+         */
         if (userId.isBlank()) return
         currentUserId = userId
         loadSessionsAndMessages(userId)
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun selectSession(sessionId: String) {
+        /**
+         * Chọn một phiên chat đã có và tải lại lịch sử tin nhắn của phiên đó.
+         */
         if (sessionId.isBlank()) return
         if (_uiState.value.sessionId == sessionId) return
 
@@ -70,12 +67,13 @@ class ChatbotViewModel(
         loadMessagesForSession(target)
     }
 
-    /**
-     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun createNewSession(userId: String) {
+        /**
+         * Tạo phiên chat mới cho user hiện tại.
+         *
+         * ViewModel chặn trường hợp người dùng liên tục tạo nhiều phiên rỗng
+         * để lịch sử chat không bị phân mảnh vô nghĩa.
+         */
         if (userId.isBlank()) return
         currentUserId = userId
 
@@ -121,12 +119,13 @@ class ChatbotViewModel(
         }
     }
 
-    /**
-     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun deleteSession(sessionId: String) {
+        /**
+         * Xóa một phiên chat và chuyển UI sang phiên phù hợp tiếp theo.
+         *
+         * Nếu sau khi xóa không còn phiên nào, ViewModel sẽ yêu cầu repository
+         * tạo hoặc lấy lại một active session mặc định.
+         */
         if (sessionId.isBlank()) return
 
         val existing = _uiState.value.sessions.firstOrNull { it.id == sessionId } ?: return
@@ -201,12 +200,13 @@ class ChatbotViewModel(
         }
     }
 
-    /**
-     * Gửi yêu cầu xử lý hoặc tín hiệu nghiệp vụ tới dịch vụ tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun sendMessage(content: String) {
+        /**
+         * Gửi message của người dùng và chờ cặp phản hồi từ repository chatbot.
+         *
+         * Toàn bộ logic AI, tool calling, fallback và lưu lịch sử nằm ở repository;
+         * ViewModel chỉ chịu trách nhiệm đồng bộ state UI và sắp xếp lại session list.
+         */
         val trimmed = content.trim()
         if (trimmed.isBlank()) return
 
@@ -258,6 +258,12 @@ class ChatbotViewModel(
     }
 
     private fun loadSessionsAndMessages(userId: String) {
+        /**
+         * Tải danh sách session của user rồi chọn session phù hợp để hiển thị.
+         *
+         * Nếu user chưa có session nào, ViewModel chủ động tạo/lấy active session đầu tiên
+         * để màn hình chatbot luôn ở trạng thái sử dụng được.
+         */
         viewModelScope.launch {
             lastUserId = userId
             _uiState.update { it.copy(isLoading = true) }
@@ -323,6 +329,9 @@ class ChatbotViewModel(
     }
 
     private fun loadMessagesForSession(session: ChatSession) {
+        /**
+         * Tải toàn bộ message của một session cụ thể và đồng bộ lại state hiển thị.
+         */
         viewModelScope.launch {
             _uiState.update {
                 it.copy(

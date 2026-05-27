@@ -12,11 +12,16 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 
 /**
- * Triển khai repository ProgressRepository cho ứng dụng LMS Android.
- * File này chịu trách nhiệm làm việc với Firestore hoặc API ngoài, đồng thời chuyển đổi kết quả về dạng phù hợp cho ViewModel.
- * Repository là ranh giới chính giữa tầng giao diện và tầng dữ liệu nên được mô tả rõ để thuận tiện cho tài liệu kỹ thuật.
+ * Repository quản lý tiến độ học tập ở các mức:
+ * - toàn khóa học (`progress`),
+ * - từng bài học (`lessonProgress`),
+ * - từng bài quiz (`quizProgress`).
+ *
+ * Đây là nguồn dữ liệu chính cho:
+ * - màn học tập của học viên,
+ * - chatbot khi trả lời câu hỏi về tiến độ,
+ * - recommendation khi suy ra mức độ gắn bó của user với từng course.
  */
-
 class ProgressRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -25,10 +30,11 @@ class ProgressRepository {
     private val quizProgressCollection = firestore.collection("quizProgress")
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy bản ghi tiến độ tổng quát của user trong một khóa học.
+     *
+     * Bản ghi này thường chứa các field như `completedLessons`, `lastLessonId`,
+     * `lastAccessedAt`, `isCompleted` và được dùng như “ảnh chụp nhanh” của course progress.
      */
-
     suspend fun getProgress(userId: String, courseId: String): ResultState<Progress?> {
         return try {
             val snapshot = progressCollection
@@ -42,10 +48,11 @@ class ProgressRepository {
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Cập nhật lesson truy cập gần nhất của user trong một course.
+     *
+     * Đây là tín hiệu nhẹ nhưng rất quan trọng cho UX “học tiếp từ đâu”
+     * và cũng được recommendation dùng như một tín hiệu recency.
      */
-
     suspend fun updateLastAccessed(
         userId: String,
         courseId: String,
@@ -71,10 +78,8 @@ class ProgressRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy tiến độ của một lesson cụ thể.
      */
-
     suspend fun getLessonProgress(
         userId: String,
         lessonId: String
@@ -91,10 +96,11 @@ class ProgressRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy toàn bộ lesson progress của user trong một course.
+     *
+     * Hàm này thường phục vụ màn player hoặc dashboard tiến độ chi tiết,
+     * nơi UI cần biết chính xác những bài nào đã hoàn thành.
      */
-
     suspend fun getAllLessonProgress(
         userId: String,
         courseId: String
@@ -112,10 +118,16 @@ class ProgressRepository {
     }
 
     /**
-     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Đánh dấu hoàn thành hoặc bỏ hoàn thành một bài học.
+     *
+     * Hàm dùng transaction để cập nhật đồng thời:
+     * - trạng thái của lesson cụ thể,
+     * - số lượng bài đã hoàn thành trong course,
+     * - cờ `isCompleted` của toàn khóa.
+     *
+     * Nhờ transaction, hệ thống tránh được tình trạng đếm sai `completedLessons`
+     * khi nhiều thao tác cập nhật xảy ra gần nhau.
      */
-
     suspend fun toggleLessonComplete(
         userId: String,
         courseId: String,
@@ -171,10 +183,8 @@ class ProgressRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy tiến độ làm quiz của một user cho một quiz cụ thể.
      */
-
     suspend fun getQuizProgress(
         userId: String,
         quizId: String
@@ -191,10 +201,15 @@ class ProgressRepository {
     }
 
     /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Nạp đồng thời ba lớp dữ liệu tiến độ của một khóa học.
+     *
+     * Repository dùng `coroutineScope + async` để song song hóa truy vấn:
+     * - progress tổng quát của course,
+     * - lesson progress,
+     * - quiz progress.
+     *
+     * Kết quả rất phù hợp cho các màn cần dựng bức tranh tiến độ đầy đủ chỉ trong một lần gọi.
      */
-
     suspend fun loadCourseProgress(
         userId: String,
         courseId: String
@@ -239,10 +254,8 @@ class ProgressRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy toàn bộ progress toàn hệ thống cho các màn hình quản trị hoặc analytics nội bộ.
      */
-
     suspend fun getAllProgress(): ResultState<List<Progress>> {
         return try {
             val snapshot = progressCollection

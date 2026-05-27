@@ -31,12 +31,13 @@ class CartViewModel(
     private val _event = MutableSharedFlow<CartEvent>()
     val event = _event.asSharedFlow()
 
-    /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun loadCart(userId: String) {
+        /**
+         * Nạp cart hiện tại cùng trang đầu của danh sách cart items.
+         *
+         * ViewModel giữ logic chọn mặc định các khóa học khả dụng ở lần tải đầu,
+         * đồng thời đồng bộ cursor phân trang để màn hình cart có thể load thêm.
+         */
         if (userId.isBlank() || _uiState.value.isLoading) return
 
         viewModelScope.launch {
@@ -83,12 +84,13 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Loại bỏ phần tử tương ứng khỏi tập dữ liệu đang quản lý.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun removeCourseFromCart(userId: String, courseId: String) {
+        /**
+         * Xóa một khóa học khỏi giỏ hàng theo kiểu optimistic update.
+         *
+         * UI được cập nhật ngay để phản hồi nhanh với thao tác người dùng.
+         * Nếu repository báo lỗi, state cũ sẽ được khôi phục.
+         */
         if (userId.isBlank() || courseId.isBlank()) return
 
         viewModelScope.launch {
@@ -132,12 +134,12 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Đảo trạng thái hiện tại của đối tượng hoặc lựa chọn tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun toggleCourseSelection(courseId: String) {
+        /**
+         * Bật/tắt trạng thái được chọn của một course trong giỏ.
+         *
+         * Danh sách `selectedCourseIds` là đầu vào trực tiếp cho luồng checkout.
+         */
         if (courseId.isBlank()) return
 
         _uiState.update { state ->
@@ -150,32 +152,28 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun selectAllCourses() {
+        /**
+         * Chọn toàn bộ khóa học đang hiển thị trong giỏ.
+         */
         _uiState.update { state ->
             state.copy(selectedCourseIds = state.items.map { it.courseId }.toSet())
         }
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun clearSelection() {
+        /**
+         * Bỏ toàn bộ lựa chọn hiện tại trong giỏ hàng.
+         */
         _uiState.update { it.copy(selectedCourseIds = emptySet()) }
     }
 
-    /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun proceedToPayment() {
+        /**
+         * Chuyển sang màn hình thanh toán với tập course đã chọn.
+         *
+         * Nếu người dùng chưa chọn mục nào, ViewModel chặn sớm và phát lỗi ngay tại chỗ.
+         */
         val selectedIds = _uiState.value.selectedCourseIds.toList()
         if (selectedIds.isEmpty()) {
             viewModelScope.launch {
@@ -189,12 +187,10 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Tải dữ liệu và cập nhật trạng thái hiển thị liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
-     */
-
     fun loadMoreItems(userId: String) {
+        /**
+         * Tải thêm một trang cart items cho thao tác cuộn vô hạn.
+         */
         if (userId.isBlank()) return
         val currentState = _uiState.value
         if (currentState.isLoadingMore || !currentState.hasMoreItems) return

@@ -141,6 +141,8 @@ interface OpenRouterService {
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
 
+    // Đây là hợp đồng HTTP tối thiểu để repository gọi OpenRouter chat completion
+    // kèm tool calling, referer và title phục vụ phía provider.
     suspend fun chat(
         @Header("Authorization") authorization: String,
         @Header("HTTP-Referer") referer: String = "https://lms-android.local",
@@ -163,6 +165,12 @@ data class PendingCourseSelection(
  */
 
 class OpenRouterChatbotRepository {
+    // Đây là chatbot repository chính ở phiên bản hiện tại.
+    // File này không chỉ gọi OpenRouter, mà còn điều phối toàn bộ vòng đời hội thoại:
+    // - lưu session/message,
+    // - gọi tool nội bộ,
+    // - fallback model và fallback cục bộ,
+    // - chuẩn hóa phản hồi rich UI qua `messageType + metadata`.
 
     private val firestore = FirebaseFirestore.getInstance()
     private val chatSessionsCollection = firestore.collection("chatSessions")
@@ -471,6 +479,8 @@ class OpenRouterChatbotRepository {
      * Ví dụ, hàm này có thể được gọi khi người dùng bắt đầu một phiên chat mới với chatbot. Khi đó, sẽ tạo một phiên chat mới trong Firestore với trạng thái ACTIVE và trả về thông tin của phiên chat đó dưới dạng `ResultState.Success`. Nếu có lỗi xảy ra trong quá trình tạo phiên chat, sẽ trả về `ResultState.Error` với thông tin lỗi để tầng gọi phía trên có thể xử lý và hiển thị thông báo cho người dùng nếu cần.
      */
 
+    // Tạo session chat mới và lưu ngay xuống Firestore để các màn chatbot
+    // có thể tái sử dụng cùng một lịch sử hội thoại trong các lần mở sau.
     suspend fun createSession(userId: String, title: String): ResultState<ChatSession> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -498,6 +508,8 @@ class OpenRouterChatbotRepository {
         * Ví dụ, hàm này có thể được gọi khi người dùng muốn tiếp tục một phiên chat đã tồn tại hoặc bắt đầu một phiên chat mới nếu chưa có phiên nào. Khi đó, sẽ kiểm tra trong Firestore xem đã có phiên chat nào với trạng thái ACTIVE cho người dùng đó chưa. Nếu có, sẽ trả về phiên chat đó dưới dạng `ResultState.Success`. Nếu chưa có, sẽ tạo một phiên chat mới bằng cách gọi hàm `createSession` và trả về kết quả của việc tạo phiên chat đó. Nếu có lỗi xảy ra trong quá trình truy vấn hoặc tạo phiên chat, sẽ trả về `ResultState.Error` với thông tin lỗi để tầng gọi phía trên có thể xử lý và hiển thị thông báo cho người dùng nếu cần.
      */
 
+    // Luôn ưu tiên dùng lại session ACTIVE hiện có trước khi tạo mới,
+    // giúp chatbot duy trì ngữ cảnh lâu dài thay vì tách nhỏ conversation.
     suspend fun getOrCreateActiveSession(
         userId: String,
         defaultTitle: String = "Trợ lý học tập AI"
@@ -528,6 +540,7 @@ class OpenRouterChatbotRepository {
      * Ví dụ, hàm này có thể được gọi khi người dùng muốn xem danh sách các phiên chat đã tạo trước đó. Khi đó, sẽ truy vấn Firestore để lấy tất cả các phiên chat của người dùng đó, sắp xếp theo thời gian cập nhật cuối cùng và trả về dưới dạng `ResultState.Success` với danh sách các phiên chat. Nếu có lỗi xảy ra trong quá trình truy vấn, sẽ trả về `ResultState.Error` với thông tin lỗi để tầng gọi phía trên có thể xử lý và hiển thị thông báo cho người dùng nếu cần.
      */
 
+    // Tải toàn bộ lịch sử session của user cho sidebar hoặc màn quản lý hội thoại.
     suspend fun getUserSessions(userId: String): ResultState<List<ChatSession>> {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
@@ -553,6 +566,7 @@ class OpenRouterChatbotRepository {
      * Ví dụ, hàm này có thể được gọi khi người dùng muốn xem các tin nhắn trong một phiên chat cụ thể. Khi đó, sẽ truy vấn Firestore để lấy tất cả các tin nhắn thuộc về phiên chat đó, sắp xếp theo thời gian gửi và trả về dưới dạng `ResultState.Success` với danh sách các tin nhắn. Nếu có lỗi xảy ra trong quá trình truy vấn, sẽ trả về `ResultState.Error` với thông tin lỗi để tầng gọi phía trên có thể xử lý và hiển thị thông báo cho người dùng nếu cần.
      */
 
+    // Lấy message của một session và sort theo thời gian để UI render đúng thứ tự chat.
     suspend fun getSessionMessages(sessionId: String): ResultState<List<ChatMessage>> {
         if (sessionId.isBlank()) return ResultState.Error("Thiếu ID phiên chat")
 
@@ -578,6 +592,8 @@ class OpenRouterChatbotRepository {
      * Ví dụ, hàm này có thể được gọi khi người dùng muốn xóa một phiên chat cụ thể. Khi đó, sẽ xóa tất cả các tin nhắn thuộc về phiên chat đó trong Firestore, sau đó xóa phiên chat đó và trả về `ResultState.Success(Unit)` nếu thành công. Nếu có lỗi xảy ra trong quá trình xóa, sẽ trả về `ResultState.Error` với thông tin lỗi để tầng gọi phía trên có thể xử lý và hiển thị thông báo cho người dùng nếu cần.
      */
 
+    // Xóa session kéo theo toàn bộ message liên quan; thao tác batch theo chunk
+    // để không vượt giới hạn số write/delete trong một commit Firestore.
     suspend fun deleteSession(sessionId: String): ResultState<Unit> {
         if (sessionId.isBlank()) return ResultState.Error("Thiếu ID phiên chat")
 
@@ -607,6 +623,8 @@ class OpenRouterChatbotRepository {
      * Ví dụ, hàm này có thể được gọi khi người dùng muốn gửi một tin nhắn mới trong một phiên chat cụ thể. Khi đó, sẽ tạo một tin nhắn mới với các thông tin được cung cấp và thêm vào Firestore, sau đó trả về `ResultState.Success` với tin nhắn đã được gửi. Nếu có lỗi xảy ra trong quá trình gửi, sẽ trả về `ResultState.Error` với thông tin lỗi để tầng gọi phía trên có thể xử lý và hiển thị thông báo cho người dùng nếu cần.
      */
 
+    // Lưu một message mới và đồng thời đẩy `lastMessageAt` của session lên hiện tại,
+    // nhờ đó danh sách hội thoại luôn phản ánh đúng phiên vừa có hoạt động.
     suspend fun sendMessage(
         sessionId: String,
         sender: ChatSender,
@@ -655,6 +673,11 @@ class OpenRouterChatbotRepository {
     // 2. Kiểm tra xem tin nhắn có chứa ý định yêu cầu gợi ý khóa học không. Nếu có, sẽ xử lý ý định này bằng cách gọi hàm `handleMlRecommendation`.
     // 3. Nếu không phải là ý định gợi ý khóa học, sẽ tiếp tục xử lý tin nhắn bằng cách lấy lịch sử tin nhắn của phiên chat đó và xây dựng cuộc hội thoại để gửi đến OpenRouter.
     // 4. Gọi OpenRouter để nhận phản hồi từ chatbot, xử lý các công cụ được gọi nếu có, và trả về phản hồi cuối cùng của chatbot dưới dạng tin nhắn mới trong Firestore.
+    // Đây là orchestration trung tâm của chatbot hiện tại:
+    // - lưu message user,
+    // - xử lý các shortcut/local intent,
+    // - gọi OpenRouter với tool calling,
+    // - phân tích function trace để quyết định rich response cho UI.
     suspend fun sendUserMessageAndAIReply(
         sessionId: String,
         userId: String,
