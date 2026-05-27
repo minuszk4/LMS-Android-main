@@ -233,44 +233,37 @@ class CourseViewModel(
     }
 
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa lỗi validation của trường tiêu đề khi giảng viên chỉnh sửa input.
      */
 
     fun onTitleChange() = _uiState.update { it.copy(titleError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa lỗi validation của trường mô tả khi giảng viên chỉnh sửa input.
      */
 
     fun onDescriptionChange() = _uiState.update { it.copy(descriptionError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa lỗi validation của trường giá khi giảng viên chỉnh sửa input.
      */
 
     fun onPriceChange() = _uiState.update { it.copy(priceError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa lỗi validation của trường danh mục khi giảng viên chọn danh mục.
      */
 
     fun onCategorySelected() = _uiState.update { it.copy(categoryError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa lỗi validation của trường thời lượng khi giảng viên chỉnh sửa input.
      */
 
     fun onDurationChange() = _uiState.update { it.copy(durationError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa lỗi validation của thumbnail sau khi giảng viên chọn ảnh đại diện khóa học.
      */
 
     fun onThumbnailSelected() = _uiState.update { it.copy(thumbnailUrlError = null) }
     /**
-     * Xử lý một sự kiện giao diện và cập nhật state hoặc event liên quan.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Xóa lỗi validation của video giới thiệu khi giảng viên chỉnh sửa URL.
      */
 
     fun onIntroVideoUrlChange() = _uiState.update { it.copy(introVideoUrlError = null) }

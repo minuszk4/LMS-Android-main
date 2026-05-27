@@ -33,8 +33,8 @@ class CurriculumRepository {
     // ─────────────────────────────────────────
 
     /**
-     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tạo bài học mới cho khóa học.
+     * Bài học được gán `orderIndex` tiếp theo và `lessonCount` của khóa học được tăng trong cùng transaction.
      */
 
     suspend fun createLesson(lesson: Lesson): ResultState<String> {
@@ -67,8 +67,7 @@ class CurriculumRepository {
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Cập nhật nội dung một bài học hiện có bằng cách merge dữ liệu mới vào document Firestore.
      */
 
     suspend fun updateLesson(lesson: Lesson): ResultState<Unit> {
@@ -85,8 +84,7 @@ class CurriculumRepository {
     }
 
     /**
-     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Xóa bài học khỏi curriculum và giảm `lessonCount` của khóa học.
      */
 
     suspend fun deleteLesson(lessonId: String, courseId: String): ResultState<Unit> {
@@ -108,8 +106,8 @@ class CurriculumRepository {
     // ─────────────────────────────────────────
 
     /**
-     * Tạo mới dữ liệu nghiệp vụ dựa trên đầu vào hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Tạo quiz mới cho khóa học.
+     * Quiz được đặt vào cuối curriculum và gửi thông báo quiz mới cho học viên đã ghi danh.
      */
 
     suspend fun createQuiz(quiz: Quiz): ResultState<String> {
@@ -147,8 +145,7 @@ class CurriculumRepository {
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Cập nhật thông tin quiz và danh sách câu hỏi của quiz hiện có.
      */
 
     suspend fun updateQuiz(quiz: Quiz): ResultState<Unit> {
@@ -165,8 +162,7 @@ class CurriculumRepository {
     }
 
     /**
-     * Xóa dữ liệu liên quan khỏi hệ thống hoặc danh sách hiển thị.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Xóa quiz khỏi curriculum của khóa học.
      */
 
     suspend fun deleteQuiz(quizId: String): ResultState<Unit> {
@@ -179,8 +175,8 @@ class CurriculumRepository {
     }
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy curriculum của khóa học bằng cách đọc song song lesson và quiz.
+     * Hai loại nội dung được gộp lại và sắp xếp theo `orderIndex`.
      */
 
     suspend fun getCurriculum(courseId: String): ResultState<List<CurriculumItem>> {
@@ -213,8 +209,8 @@ class CurriculumRepository {
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Cập nhật thứ tự hiển thị của toàn bộ lesson/quiz trong curriculum.
+     * Firestore batch được chia nhỏ để tránh vượt giới hạn số thao tác trong một batch.
      */
 
     suspend fun updateOrder(items: List<CurriculumItem>): ResultState<Unit> {

@@ -18,8 +18,8 @@ class InstructorRepository {
     private val instructorsCollection = firestore.collection("instructors")
 
     /**
-     * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Lấy hồ sơ giảng viên từ Firestore.
+     * Hàm đồng thời chuẩn hóa dữ liệu ngân hàng cũ để các màn hình và luồng tạo khóa học dùng cùng một format.
      */
 
     suspend fun getInstructorById(instructorId: String): ResultState<Instructor> {
@@ -61,8 +61,8 @@ class InstructorRepository {
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Cập nhật thông tin chuyên môn của giảng viên.
+     * Các trường chuyên môn, bằng cấp và số năm kinh nghiệm được validate trước khi ghi vào Firestore.
      */
 
     suspend fun updateInstructorProfile(
@@ -100,8 +100,8 @@ class InstructorRepository {
     }
 
     /**
-     * Cập nhật dữ liệu hiện có và đồng bộ lại trạng thái liên quan.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Cập nhật thông tin tài khoản ngân hàng của giảng viên.
+     * Dữ liệu này phục vụ kiểm tra điều kiện tạo khóa học và tạo payout khi khóa học được mua.
      */
 
     suspend fun updateBankInfo(
@@ -144,8 +144,8 @@ class InstructorRepository {
     }
 
     /**
-     * Kiểm tra điều kiện nghiệp vụ trước khi tiếp tục các bước xử lý kế tiếp.
-     * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Kiểm tra giảng viên đã có đủ thông tin ngân hàng hay chưa.
+     * Hàm hỗ trợ cả format mới và field legacy `bankAccount` để tương thích dữ liệu cũ.
      */
 
     fun hasValidBankInfo(instructor: Instructor): Boolean {

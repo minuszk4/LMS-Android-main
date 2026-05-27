@@ -33,8 +33,8 @@ class CourseAnalyticsViewModel(
     private var loadedCourseId: String = ""
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Khởi tạo màn phân tích hiệu suất cho một khóa học.
+     * Nếu khóa học hiện tại đã có dữ liệu analytics, hàm tránh tải lại không cần thiết.
      */
 
     fun init(courseId: String) {
@@ -44,8 +44,7 @@ class CourseAnalyticsViewModel(
     }
 
     /**
-     * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
-     * Hàm này chủ yếu cập nhật `uiState`, gọi repository và phát event cho giao diện khi cần.
+     * Làm mới dữ liệu phân tích của khóa học đang xem.
      */
 
     fun refresh(courseId: String) {
