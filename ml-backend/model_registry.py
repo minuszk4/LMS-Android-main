@@ -1,8 +1,8 @@
-"""Quan ly registry va artifact trong vong doi model recommendation.
+"""Quản lý registry và artifact trong vòng đời model recommendation.
 
-Registry nay truu tuong hoa hai lop luu tru:
-- artifact local trong ``ml-backend/artifacts`` cho dev va fallback,
-- metadata va artifact chia chunk tren Firestore cho runtime dung chung.
+Registry này trừu tượng hóa hai lớp lưu trữ:
+- artifact local trong ``ml-backend/artifacts`` cho môi trường dev và fallback,
+- metadata cùng artifact chia chunk trên Firestore cho runtime dùng chung.
 """
 
 from __future__ import annotations
@@ -22,6 +22,8 @@ DEFAULT_MODEL_PATH = ARTIFACT_ROOT / "recommendation_model.pkl"
 DEFAULT_LEGACY_MODEL_PATH = ARTIFACT_ROOT / "recommendation_model.json"
 DEFAULT_MANIFEST_PATH = ARTIFACT_ROOT / "active_model_manifest.json"
 VERSION_ROOT = ARTIFACT_ROOT / "versions"
+# Artifact pickle có thể vượt giới hạn kích thước document của Firestore,
+# nên cần được chia thành nhiều chunk nhỏ trước khi upload.
 CHUNK_SIZE_BYTES = 700_000
 
 REGISTRY_COLLECTION = os.getenv("RECOMMENDATION_MODEL_REGISTRY_COLLECTION", "recommendationModelRegistry")
@@ -32,12 +34,12 @@ FEEDBACK_COLLECTION = os.getenv("RECOMMENDATION_FEEDBACK_COLLECTION", "recommend
 
 
 def _now_ms() -> int:
-    """Tra ve timestamp hien tai tinh theo milliseconds."""
+    """Trả về timestamp hiện tại tính theo milliseconds."""
     return int(time.time() * 1000)
 
 
 class ModelRegistry:
-    """Quan ly model active, lich su version va cac ban ghi telemetry."""
+    """Quản lý model active, lịch sử version và các bản ghi telemetry."""
 
     def __init__(self):
         self.db = get_firestore_client()
@@ -47,7 +49,12 @@ class ModelRegistry:
         return self.db is not None
 
     def get_active_model_bundle(self) -> Optional[Dict]:
-        """Tim artifact model active tu Firestore hoac cache local."""
+        """Tìm artifact model active từ Firestore hoặc cache local."""
+        # Thu tu uu tien:
+        # 1. Firestore active metadata + artifact chunks
+        # 2. manifest local da cache
+        # 3. default pickle file
+        # 4. legacy json artifact
         firestore_metadata = self._get_active_firestore_metadata()
         if firestore_metadata:
             version_id = str(firestore_metadata.get("id") or "").strip()
@@ -98,12 +105,12 @@ class ModelRegistry:
         return None
 
     def get_active_model_metadata(self) -> Optional[Dict]:
-        """Lay metadata cua model dang duoc xem la active."""
+        """Lấy metadata của model đang được xem là active."""
         bundle = self.get_active_model_bundle()
         return (bundle or {}).get("metadata") or None
 
     def list_model_versions(self, limit: int = 20) -> List[Dict]:
-        """Liet ke cac version model moi nhat tu Firestore hoac manifest local."""
+        """Liệt kê các version model mới nhất từ Firestore hoặc manifest local."""
         local_versions: List[Dict] = []
         if VERSION_ROOT.exists():
             for manifest_path in VERSION_ROOT.glob("*/manifest.json"):
@@ -127,7 +134,7 @@ class ModelRegistry:
         return local_versions[: max(limit, 1)]
 
     def get_training_job(self, job_id: str) -> Optional[Dict]:
-        """Lay thong tin mot training job theo ID."""
+        """Lấy thông tin một training job theo ID."""
         if self.has_firestore:
             snapshot = self.db.collection(TRAINING_JOBS_COLLECTION).document(job_id).get()
             if snapshot.exists:
@@ -135,7 +142,9 @@ class ModelRegistry:
         return None
 
     def should_activate_model(self, candidate_metrics: Dict, current_metadata: Optional[Dict]) -> Dict:
-        """Quyet dinh model moi co nen thay model active hay khong."""
+        """Quyết định model mới có nên thay model active hay không."""
+        # Guardrail don gian:
+        # ndcg@10 phai tang va recall@10 khong duoc giam qua nguong cho phep.
         if not current_metadata:
             return {
                 "shouldActivate": True,
@@ -174,7 +183,10 @@ class ModelRegistry:
         metadata: Dict,
         activate: bool = True,
     ) -> Dict:
-        """Luu artifact da train va manifest di kem."""
+        """Lưu artifact đã train và manifest đi kèm."""
+        # Moi version duoc luu ca hai noi:
+        # - local filesystem de debug/dev
+        # - Firestore de runtime co the dong bo giua nhieu environment
         version_root = VERSION_ROOT / version_id
         version_root.mkdir(parents=True, exist_ok=True)
         artifact_path = version_root / "recommendation_model.pkl"
@@ -200,6 +212,8 @@ class ModelRegistry:
 
         if self.has_firestore:
             if activate:
+                # Truoc khi promote version moi, archive het version ACTIVE cu
+                # de registry chi con mot active source of truth.
                 self._archive_active_versions()
             firestore_metadata = {
                 **enriched,
@@ -213,7 +227,7 @@ class ModelRegistry:
         return enriched
 
     def activate_model(self, version_id: str) -> Optional[Dict]:
-        """Nang mot version da luu len trang thai ACTIVE."""
+        """Nâng một version đã lưu lên trạng thái ACTIVE."""
         version_root = VERSION_ROOT / version_id
         manifest_path = version_root / "manifest.json"
         artifact_path = version_root / "recommendation_model.pkl"
@@ -233,7 +247,7 @@ class ModelRegistry:
         return metadata
 
     def create_training_job(self, payload: Dict) -> str:
-        """Tao training job moi va tra ve ID cua job."""
+        """Tạo training job mới và trả về ID của job."""
         job_id = payload.get("id") or f"job_{_now_ms()}"
         record = {
             **payload,
@@ -246,7 +260,7 @@ class ModelRegistry:
         return job_id
 
     def update_training_job(self, job_id: str, payload: Dict) -> None:
-        """Cap nhat training job voi tien do hoac ket qua moi."""
+        """Cập nhật training job với tiến độ hoặc kết quả mới."""
         if not self.has_firestore:
             return
         payload = dict(payload)
@@ -254,7 +268,7 @@ class ModelRegistry:
         self.db.collection(TRAINING_JOBS_COLLECTION).document(job_id).set(payload, merge=True)
 
     def log_prediction(self, payload: Dict) -> None:
-        """Ghi mot ban ghi prediction de phuc vu danh gia ve sau."""
+        """Ghi một bản ghi prediction để phục vụ đánh giá về sau."""
         if not self.has_firestore:
             return
         log_id = payload.get("id") or f"pred_{_now_ms()}"
@@ -262,7 +276,7 @@ class ModelRegistry:
         self.db.collection(PREDICTION_LOG_COLLECTION).document(log_id).set(record)
 
     def log_feedback(self, payload: Dict) -> None:
-        """Ghi mot feedback event online lien ket voi ket qua recommendation."""
+        """Ghi một feedback event online liên kết với kết quả recommendation."""
         if not self.has_firestore:
             return
         event_id = payload.get("id") or f"feedback_{_now_ms()}"
@@ -270,7 +284,9 @@ class ModelRegistry:
         self.db.collection(FEEDBACK_COLLECTION).document(event_id).set(record)
 
     def _cache_active_artifact(self, version_id: str, artifact_bytes: bytes, metadata: Dict) -> None:
-        """Lam moi cache model active local duoc API serving su dung."""
+        """Làm mới cache model active local được API serving sử dụng."""
+        # Cache local nay la duong dan nhanh nhat de Flask app nap artifact active
+        # ma khong can download lai chunk Firestore cho moi lan khoi dong.
         ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
         DEFAULT_MODEL_PATH.write_bytes(artifact_bytes)
         active_manifest = {
@@ -287,13 +303,13 @@ class ModelRegistry:
         )
 
     def _read_local_manifest(self) -> Optional[Dict]:
-        """Doc manifest model active local neu file ton tai."""
+        """Đọc manifest model active local nếu file tồn tại."""
         if not DEFAULT_MANIFEST_PATH.exists():
             return None
         return json.loads(DEFAULT_MANIFEST_PATH.read_text(encoding="utf-8"))
 
     def _get_active_firestore_metadata(self) -> Optional[Dict]:
-        """Lay metadata ACTIVE moi nhat cua model tren Firestore."""
+        """Lấy metadata ACTIVE mới nhất của model trên Firestore."""
         if not self.has_firestore:
             return None
         active_docs = [
@@ -305,7 +321,7 @@ class ModelRegistry:
         return max(active_docs, key=lambda item: int(item.get("activatedAt") or item.get("trainedAt") or 0))
 
     def _archive_active_versions(self) -> None:
-        """Chuyen cac version ACTIVE cu sang ARCHIVED truoc khi promote model moi."""
+        """Chuyển các version ACTIVE cũ sang ARCHIVED trước khi promote model mới."""
         if not self.has_firestore:
             return
         batch = self.db.batch()
@@ -317,9 +333,10 @@ class ModelRegistry:
             batch.commit()
 
     def _upload_artifact_bytes(self, version_id: str, artifact_bytes: bytes) -> None:
-        """Luu bytes cua artifact len Firestore duoi dang cac chunk document."""
+        """Lưu bytes của artifact lên Firestore dưới dạng các chunk document."""
         if not self.has_firestore:
             return
+        # Firestore co gioi han kich thuoc document, nen artifact phai duoc cat chunk.
         metadata_ref = self.db.collection(ARTIFACT_COLLECTION).document(version_id)
         metadata_ref.set({
             "versionId": version_id,
@@ -337,9 +354,11 @@ class ModelRegistry:
             })
 
     def _download_artifact_bytes(self, version_id: str) -> Optional[bytes]:
-        """Ghep lai artifact tu cac chunk da luu tren Firestore."""
+        """Ghép lại artifact từ các chunk đã lưu trên Firestore."""
         if not self.has_firestore:
             return None
+        # Runtime download tat ca chunk, sort theo index roi ghep lai thanh payload bytes
+        # dung cho RecommendationModel.load_bytes().
         chunks = sorted(
             (
                 chunk.to_dict() or {}

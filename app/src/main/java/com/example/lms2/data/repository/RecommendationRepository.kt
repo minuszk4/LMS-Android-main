@@ -53,6 +53,7 @@ class RecommendationRepository {
     /**
      * Lấy dữ liệu hoặc trạng thái cần thiết cho luồng hiện tại.
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Hàm này được thiết kế để cung cấp danh sách các khóa học được đề xuất cho người dùng dựa trên lịch sử học tập, sở thích và các tín hiệu khác. Quá trình đề xuất có thể bao gồm việc lấy dữ liệu từ Firestore về các khóa học đã đăng ký, tiến trình học tập của người dùng, sau đó xây dựng một hồ sơ người dùng để gửi đến backend recommendation engine nhằm nhận được điểm số đề xuất cho từng khóa học. Kết quả cuối cùng sẽ là một danh sách các khóa học được sắp xếp theo điểm số đề xuất, kết hợp giữa tín hiệu từ backend và heuristic local để đảm bảo rằng ngay cả khi backend không trả về điểm số thì vẫn có thể cung cấp các đề xuất phù hợp dựa trên hồ sơ người dùng.
      */
 
     suspend fun getRecommendedCourses(
@@ -62,6 +63,7 @@ class RecommendationRepository {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
+            // Recommendation chi co y nghia khi bo qua cac course ma user da enroll.
             val enrolledCourseIds = loadEnrolledCourseIds(userId)
             val allCourses = loadPublishedCourses()
             val availableCourses = allCourses.filter { it.id !in enrolledCourseIds }
@@ -69,29 +71,31 @@ class RecommendationRepository {
                 return ResultState.Success(emptyList())
             }
 
+            // Cold-start fallback: chua co lich su thi xep hang bang quality/popularity signal.
             if (enrolledCourseIds.isEmpty()) {
                 return ResultState.Success(rankFallbackCourses(availableCourses).take(limit))
             }
-
+            // Neu da co lich su hoc tap, thi xay dung profile user de xin backend score cho tung course,
+            // sau do tron backend score voi heuristic de co duoc danh sach recommendation hop profile hon.
             val progressSnapshot = progressCollection
                 .whereEqualTo("userId", userId)
                 .get()
                 .await()
-
+            // UserProfile la phan tom tat "so thich hoc tap" ma app tu xay
             val userProfile = buildUserProfile(
                 userId = userId,
                 enrolledCourses = allCourses.filter { it.id in enrolledCourseIds },
                 progressSnapshot = progressSnapshot,
                 courseById = allCourses.associateBy { it.id }
             )
-
+            // Backend recommendation duoc thiet ke de chi tra ve score cho mot tap hop nho courseId ma user co kha nang quan tam nhat,
             val backendScores = fetchBackendRecommendations(
                 userId = userId,
                 limit = limit,
                 candidateCourseIds = availableCourses.map { it.id },
                 source = "app_home"
             )
-
+            // Neu backend tra ve score, thi tron score do voi heuristic de uu tien cho nhung course vua hop profile user, vua co quality signal tot. Neu backend khong tra ve duoc score (do loi hoac cold-start), thi chi danh gia bang heuristic van co the dua ra danh sach recommendation kha hop profile.
             ResultState.Success(rankCourses(availableCourses, userProfile, backendScores).take(limit))
         } catch (_: Exception) {
             fallbackRecommendedCourses(limit = limit)
@@ -111,6 +115,8 @@ class RecommendationRepository {
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
+            // Nhanh hon va dung nghiep vu hon neu app tu loc theo category truoc,
+            // sau do moi xin backend score cho dung tap con lai.
             val enrolledCourseIds = loadEnrolledCourseIds(userId)
             val allPublishedCourses = loadPublishedCourses()
             val categoryCourses = allPublishedCourses
@@ -157,6 +163,7 @@ class RecommendationRepository {
 
         return withContext(Dispatchers.IO) {
             try {
+                // Payload backend chi mang thong tin toi thieu can cho suy luan.
                 val payload = JSONObject().apply {
                     put("userId", userId)
                     put("limit", limit)
@@ -175,6 +182,7 @@ class RecommendationRepository {
                     .build()
 
                 httpClient.newCall(request).execute().use { response ->
+                    // Loi backend khong duoc lam vo home screen; khi do app se tu fallback.
                     if (!response.isSuccessful) return@withContext emptyMap()
                     val body = response.body?.string().orEmpty()
                     if (body.isBlank()) return@withContext emptyMap()
@@ -198,6 +206,7 @@ class RecommendationRepository {
         source: String,
         modelVersion: String? = null
     ): ResultState<Unit> {
+        // Logging feedback la best-effort telemetry; khong co backend URL thi bo qua im lang.
         if (recommendationBackendUrl.isBlank()) return ResultState.Success(Unit)
         if (userId.isBlank() || courseId.isBlank() || eventType.isBlank()) return ResultState.Success(Unit)
 
@@ -245,6 +254,8 @@ class RecommendationRepository {
         modelVersion: String? = null
     ) {
         if (userId.isBlank()) return
+        // Impression duoc tach thanh tung event/course de backend co the thong ke CTR
+        // va hoc online tu moi item da duoc show cho user.
         courseIds.distinct().forEach { courseId ->
             logRecommendationFeedback(
                 userId = userId,
@@ -260,6 +271,8 @@ class RecommendationRepository {
         json: JSONObject,
         candidateCourseIds: List<String>
     ): Map<String, Double> {
+        // Backend co the tra nhieu hinh payload khac nhau qua cac version:
+        // recommendations / courses / data, item la string hoac object co score.
         val array = when {
             json.has("recommendations") -> json.optJSONArray("recommendations")
             json.has("courses") -> json.optJSONArray("courses")
@@ -307,6 +320,8 @@ class RecommendationRepository {
         total: Int,
         rawScore: Double
     ): Double {
+        // Neu backend da tra score thi dung score; neu chi tra rank thi bien rank thanh
+        // score giam dan trong khoang [0, 1] de app van co the tron voi heuristic.
         if (!rawScore.isNaN()) {
             return if (rawScore in 0.0..1.0) {
                 rawScore.coerceIn(0.0, 1.0)
@@ -325,6 +340,8 @@ class RecommendationRepository {
         progressSnapshot: QuerySnapshot,
         courseById: Map<String, Course>
     ): UserProfile {
+        // UserProfile la phan tom tat "so thich hoc tap" ma app tu xay:
+        // category, level, instructor va khoang gia.
         val categoryWeights = mutableMapOf<String, Double>()
         val levelWeights = mutableMapOf<CourseLevel, Double>()
         val instructorWeights = mutableMapOf<String, Double>()
@@ -338,6 +355,8 @@ class RecommendationRepository {
         )
 
         enrolledCourses.forEach { course ->
+            // Trong so cua mot khoa hoc khong dong deu; progress va recency lam cho
+            // khoa hoc dang hoc gan day anh huong manh hon vao profile.
             val weight = progressWeights[course.id] ?: 0.5
             categoryWeights[course.categoryId] = (categoryWeights[course.categoryId] ?: 0.0) + weight
             levelWeights[course.level] = (levelWeights[course.level] ?: 0.0) + weight
@@ -370,6 +389,8 @@ class RecommendationRepository {
         enrolledCourseIds: Set<String>,
         courseById: Map<String, Course>
     ): Map<String, Double> {
+        // Trong so interaction duoc tao tu hai tin hieu:
+        // muc do hoan thanh va do moi cua lan hoc gan nhat.
         val weights = mutableMapOf<String, Double>()
         val nowMs = System.currentTimeMillis()
         val dayMs = 24 * 60 * 60 * 1000.0
@@ -386,6 +407,8 @@ class RecommendationRepository {
                     0.5
                 }
 
+                // Recency decay giup hanh vi moi co gia tri hon hanh vi qua cu,
+                // nhung van co floor de khong mat sach dau vet hoc tap cu.
                 val lastAccessedAt = doc.getLong("lastAccessedAt") ?: 0L
                 val recencyWeight = if (lastAccessedAt > 0L) {
                     val daysAgo = ((nowMs - lastAccessedAt).coerceAtLeast(0L)) / dayMs
@@ -409,6 +432,8 @@ class RecommendationRepository {
         userProfile: UserProfile,
         backendScores: Map<String, Double>
     ): List<Course> {
+        // Hybrid ranking: backend ML duoc uu tien cao hon, nhung heuristic local
+        // van giu vai tro neo de app tu dung duoc khi backend score thieu/mat.
         return courses
             .map { course ->
                 val heuristicScore = calculateHeuristicScore(userProfile, course)
@@ -425,6 +450,8 @@ class RecommendationRepository {
     }
 
     private fun rankFallbackCourses(courses: List<Course>): List<Course> {
+        // Fallback thuong duoc dung cho cold-start hoac backend loi,
+        // nen uu tien cac course co quality signal de an toan cho home screen.
         return courses.sortedWith(
             compareByDescending<Course> { it.rating }
                 .thenByDescending { it.reviewCount }
@@ -432,30 +459,43 @@ class RecommendationRepository {
                 .thenByDescending { it.createdAt }
         )
     }
-
+    // Heuristic score được tính toán dựa trên sự kết hợp của nhiều yếu tố liên quan đến sở 
+    //thích học tập của người dùng và tín hiệu chất lượng của khóa học. Điểm số này được sử 
+    //dụng để xếp hạng các khóa học khi không có điểm số từ backend hoặc để kết hợp với điểm số 
+    //từ backend nhằm tạo ra một danh sách đề xuất phù hợp hơn với người dùng.
     private fun calculateHeuristicScore(
         userProfile: UserProfile,
         course: Course
     ): Double {
+        // Heuristic score tron hai nhom:
+        // - profile fit cua user
+        // - popularity/quality signal cua course
+        // Trong do profile fit duoc tinh tu so thich cua user voi category/level/instructor 
+        //va price affinity, ket hop voi freshness de uu tien khoa hoc moi hon. Popularity signal 
+        //duoc tinh tu rating/enrollment/review count de uu tien khoa hoc chat luong cao.
         val categoryWeight = userProfile.categoryWeights[course.categoryId] ?: 0.0
         val levelWeight = userProfile.levelWeights[course.level] ?: 0.0
         val instructorWeight = userProfile.instructorWeights[course.instructorId] ?: 0.0
         val priceAffinity = calculatePriceAffinity(userProfile, course)
         val freshnessScore = calculateFreshnessScore(course)
         val reviewScore = course.reviewCount.coerceAtMost(200) / 200.0
-
+        // Profile score duoc tinh toan de uu tien cho nhung khoa hoc hop voi so thich cua user, 
+        //giup tang kha nang user click va mua khoa hoc duoc de xet den backend recommendation.
         val profileScore = (categoryWeight * 0.30) +
             (levelWeight * 0.18) +
             (instructorWeight * 0.16) +
             (priceAffinity * 0.18) +
             (freshnessScore * 0.18)
+        // Popularity score duoc tinh toan de uu tien cho nhung khoa hoc chat luong cao, 
+        //giup tang kha nang khoa hoc duoc de xet den backend recommendation va cung cap danh sach chat luong hon cho user.
         val popularityScore = (course.rating / 5.0) * 0.45 +
             (course.enrollmentCount.coerceAtMost(500) / 500.0) * 0.35 +
             reviewScore * 0.20
 
         return (profileScore * 0.60) + (popularityScore * 0.40)
     }
-
+    // Price affinity duoc tinh toan de xep hang cao hon cho nhung khoa hoc co gia gan voi muc trung binh ma user da tung mua, giup tang kha nang user click va mua khoa hoc duoc de xet den backend recommendation.
+    // Cong thuc tinh price affinity dua tren khoang cach tuyen tinh giua gia khoa hoc va muc trung binh trong profile, duoc chuan hoa de tra ve gia tri trong khoang [0, 1]. Neu user chua co lich su mua nao co gia thi tra ve 0.5 de khong uu tien hay loai tru khoa hoc theo price.
     private fun calculatePriceAffinity(
         userProfile: UserProfile,
         course: Course
@@ -465,14 +505,15 @@ class RecommendationRepository {
         val normalizedGap = (abs(course.price - userProfile.averagePrice) / span).coerceIn(0.0, 1.0)
         return 1.0 - normalizedGap
     }
-
+    // Freshness score duoc tinh toan de uu tien khoa hoc moi hon, giup tang kha nang khoa hoc duoc de xet den backend recommendation va cung cap danh sach moi me hon cho user.
     private fun calculateFreshnessScore(course: Course): Double {
         val nowMs = System.currentTimeMillis()
         val ageDays = ((nowMs - course.createdAt).coerceAtLeast(0L)) / (24 * 60 * 60 * 1000.0)
         return exp(-ageDays / 180.0).coerceIn(0.15, 1.0)
     }
-
+    // Load tat ca course da publish tu Firestore, chi lay nhung field can thiet de hien thi va xep hang de giam thi luong data truyen ve cho app va backend.
     private suspend fun loadPublishedCourses(): List<Course> {
+        // Recommendation chi score tren cac course da publish.
         val snapshot = coursesCollection
             .whereEqualTo("isPublished", true)
             .get()
@@ -481,8 +522,9 @@ class RecommendationRepository {
             doc.toObject(Course::class.java)?.copy(id = doc.id)
         }
     }
-
+    // Load danh sach courseId ma user da enroll tu Firestore de loai tru khi xep hang va gui backend, giup dam bao rang cac khoa hoc da hoc se khong xuat hien trong danh sach recommendation.
     private suspend fun loadEnrolledCourseIds(userId: String): Set<String> {
+        // Chi can ID de loai tru nhanh nhung course da mua/enroll.
         return enrollmentsCollection
             .whereEqualTo("userId", userId)
             .get()
@@ -491,12 +533,13 @@ class RecommendationRepository {
             .mapNotNull { it.getString("courseId") }
             .toSet()
     }
-
+    // Fallback cuoi cung neu backend khong tra ve duoc score, hoac co loi khi xin backend, hoac dang cold-start (chua co lich su de xay dung profile va xin backend).
     private suspend fun fallbackRecommendedCourses(
         limit: Int,
         categoryId: String? = null
     ): ResultState<List<Course>> {
         return try {
+            // Fallback cuoi cung neu ca hybrid pipeline va backend deu loi.
             val fallbackCourses = loadPublishedCourses()
                 .asSequence()
                 .filter { categoryId.isNullOrBlank() || it.categoryId == categoryId }
@@ -506,7 +549,7 @@ class RecommendationRepository {
             ResultState.Error(fallbackException.message ?: "Lấy gợi ý khóa học thất bại")
         }
     }
-
+    // UserProfile la phan tom tat "so thich hoc tap" ma app tu xay, duoc su dung de tinh toan heuristic score khi rank course va cung co the duoc gui den backend de backend suy luan ra diem so recommendation hop profile hon cho tung course.
     private data class UserProfile(
         val categoryWeights: Map<String, Double>,
         val levelWeights: Map<CourseLevel, Double>,

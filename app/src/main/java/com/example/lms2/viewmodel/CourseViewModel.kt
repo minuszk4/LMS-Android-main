@@ -34,14 +34,19 @@ class CourseViewModel(
     private val instructorRepository: InstructorRepository = InstructorRepository()
 ) : ViewModel() {
 
+    // Main UI state observed by Compose screens for lists, forms, and loading flags.
     private val _uiState = MutableStateFlow(CourseUiState())
     val uiState: StateFlow<CourseUiState> = _uiState.asStateFlow()
 
+    // One-shot events for snackbar/error/navigation style side effects.
     private val _event = MutableSharedFlow<CourseEvent>()
     val event = _event.asSharedFlow()
+
+    // Used to prevent duplicate recommendation impression logs on recomposition.
     private var lastSuggestedImpressionSignature: String? = null
 
     init {
+        // Preload categories so the create/update form has data immediately.
         getCategories()
     }
 
@@ -82,6 +87,8 @@ class CourseViewModel(
      */
     fun getMyCourses(instructorId: String) {
         viewModelScope.launch {
+            // This list is also reloaded after create/update/delete/publish actions
+            // so the instructor dashboard always reflects server state.
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             when (val result = repository.getCoursesByInstructor(instructorId)) {
                 is ResultState.Success -> {
@@ -115,6 +122,8 @@ class CourseViewModel(
                 )
             ) {
                 is ResultState.Success -> {
+                    // Replace the current explore feed with a fresh first page
+                    // and store cursor metadata for subsequent pagination calls.
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -164,6 +173,7 @@ class CourseViewModel(
                 is ResultState.Success -> {
                     val courses = result.data.take(5)
                     _uiState.update { it.copy(isLoading = false, suggestedCourses = courses) }
+                    // Log impression only after these recommendations are really shown on screen.
                     logSuggestedImpressionsIfNeeded(userId, courses)
                 }
                 is ResultState.Error -> {
@@ -276,7 +286,9 @@ class CourseViewModel(
      */
     private fun validate(course: Course, isFree: Boolean, priceStr: String): Boolean {
         var isValid = true
-        
+
+        // Clear old field errors first so the form only shows messages
+        // produced by the current validation pass.
         _uiState.update { it.copy(
             titleError = null,
             descriptionError = null,
@@ -287,6 +299,7 @@ class CourseViewModel(
             introVideoUrlError = null
         )}
 
+        // Validate the required fields before create/update is allowed to continue.
         if (course.title.isBlank()) {
             _uiState.update { it.copy(titleError = "Tên khóa học không được để trống") }
             isValid = false
@@ -321,6 +334,8 @@ class CourseViewModel(
             isValid = false
         }
 
+        // Intro video is optional, but if present it must be a supported URL format
+        // that the app can preview or play reliably.
         val introUrl = course.introVideoUrl.trim()
         if (introUrl.isNotEmpty()) {
             val isHttp = introUrl.startsWith("http", ignoreCase = true)
@@ -347,10 +362,12 @@ class CourseViewModel(
      */
     fun createCourse(course: Course, isFree: Boolean, priceStr: String) {
         if (!validate(course, isFree, priceStr)) return
-        
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
 
+            // A course should not be created if the instructor has not completed
+            // bank information required later for payout processing.
             when (val instructorResult = instructorRepository.getInstructorById(course.instructorId)) {
                 is ResultState.Success -> {
                     if (!instructorRepository.hasValidBankInfo(instructorResult.data)) {
@@ -383,6 +400,8 @@ class CourseViewModel(
             var finalThumbnailUrl = course.thumbnailUrl
             var finalPublicId = course.thumbnailPublicId
 
+            // When the thumbnail comes from the local device picker, upload it first
+            // so Firestore stores a durable public URL instead of a content URI.
             if (course.thumbnailUrl.startsWith("content://")) {
                 when (val uploadResult = CloudinaryManager.uploadImage(Uri.parse(course.thumbnailUrl))) {
                     is ResultState.Success -> {
@@ -405,6 +424,7 @@ class CourseViewModel(
 
             when (val result = repository.createCourse(newCourse)) {
                 is ResultState.Success -> {
+                    // Emit success and reload the instructor list from source of truth.
                     _event.emit(CourseEvent.SaveSuccess)
                     getMyCourses(course.instructorId)
                 }
@@ -432,6 +452,7 @@ class CourseViewModel(
             var finalThumbnailUrl = course.thumbnailUrl
             var finalPublicId = course.thumbnailPublicId
 
+            // Re-upload only when the current thumbnail is a newly selected local image.
             if (course.thumbnailUrl.startsWith("content://")) {
                 when (val uploadResult = CloudinaryManager.uploadImage(Uri.parse(course.thumbnailUrl))) {
                     is ResultState.Success -> {
@@ -454,6 +475,7 @@ class CourseViewModel(
 
             when (val result = repository.updateCourse(updatedCourse)) {
                 is ResultState.Success -> {
+                    // Refresh the management list so the latest persisted values are shown.
                     _event.emit(CourseEvent.SaveSuccess)
                     getMyCourses(course.instructorId)
                 }
@@ -468,6 +490,9 @@ class CourseViewModel(
 
     /**
      * Xóa khóa học và làm mới danh sách quản lý của giảng viên.
+     *
+     * The ViewModel reloads from repository instead of removing the item locally
+     * so the UI stays aligned with the actual persisted state.
      */
     fun deleteCourse(courseId: String, instructorId: String) {
         viewModelScope.launch {
@@ -485,6 +510,9 @@ class CourseViewModel(
 
     /**
      * Đảo trạng thái phát hành của khóa học giữa nháp và công khai.
+     *
+     * The current state is read from `uiState.courses`, then inverted and sent
+     * to the repository. A reload follows so publish flags and timestamps stay in sync.
      */
     fun togglePublishStatus(courseId: String, instructorId: String) {
         viewModelScope.launch {
@@ -510,6 +538,8 @@ class CourseViewModel(
         _uiState.update { 
             it.copy(
                 currentCourse = course,
+                // Reset old validation errors when switching to another course
+                // or when opening the form for a new create flow.
                 titleError = null,
                 descriptionError = null,
                 priceError = null,
@@ -540,6 +570,8 @@ class CourseViewModel(
             when (val result = repository.getAllPublishedCoursesPage(pageRequest)) {
                 is ResultState.Success -> {
                     _uiState.update {
+                        // Merge the next page with the existing list and de-duplicate by id
+                        // in case cache or cursor boundaries return overlapping items.
                         val mergedCourses = (it.allPublishedCourses + result.data.items)
                             .distinctBy { course -> course.id }
                         it.copy(

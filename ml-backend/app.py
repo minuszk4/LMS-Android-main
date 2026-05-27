@@ -1,4 +1,10 @@
-"""Lop Flask phuc vu endpoint recommendation va model-ops cho LMS."""
+"""Dịch vụ Flask phục vụ recommendation và model-ops cho hệ thống LMS.
+
+File này là điểm vào chính của ML backend. Nó đồng thời đảm nhiệm ba nhóm vai trò:
+1. Phục vụ endpoint suy luận recommendation cho ứng dụng Android.
+2. Cung cấp các endpoint quản trị model như reload, liệt kê version và retrain.
+3. Ghi nhận telemetry như prediction log và feedback event để phục vụ đánh giá mô hình.
+"""
 
 import os
 import time
@@ -19,14 +25,25 @@ from recommendation_dataset import (
 )
 from train_model import train_and_register
 
+# Nạp cấu hình từ `.env` để backend có thể đọc token quản trị,
+# data source, cổng chạy và các tham số model-ops khác.
 load_dotenv()
 
 app = Flask(__name__)
+# Cho phép app Android hoặc các dashboard nội bộ gọi API từ domain khác.
 CORS(app)
 
 
 class RuntimeDataCache:
-    """Cache du lieu runtime de moi request khong phai doc Firestore truc tiep."""
+    """Cache snapshot dữ liệu runtime để giảm chi phí đọc dữ liệu cho mỗi request.
+
+    Thay vì mỗi lần suy luận lại truy vấn Firestore hoặc nguồn dữ liệu gốc,
+    backend sẽ nạp một snapshot gồm courses, enrollments, progress, feedback...
+    rồi dùng lại trong một khoảng thời gian ngắn. Cách này giúp:
+    - giảm độ trễ của endpoint `/recommendations`,
+    - giảm tải cho nguồn dữ liệu phía sau,
+    - vẫn cho phép refresh theo chu kỳ hoặc theo yêu cầu quản trị.
+    """
 
     def __init__(self):
         self.payload: Optional[dict] = None
@@ -43,7 +60,12 @@ class RuntimeDataCache:
         return str(os.getenv("RECOMMENDATION_DATA_SOURCE", "auto")).strip().lower()
 
     def get(self, force_refresh: bool = False) -> dict:
-        """Tra ve du lieu cache va refresh khi het han hoac bi ep refresh."""
+        """Trả về dữ liệu cache, đồng thời tự refresh khi cache hết hạn.
+
+        Nếu `force_refresh=True`, hàm sẽ bỏ qua dữ liệu cũ và nạp lại ngay.
+        Nếu việc nạp mới thất bại nhưng cache cũ vẫn còn, backend sẽ giữ lại
+        snapshot cũ để service tiếp tục hoạt động thay vì lỗi toàn bộ.
+        """
         now_ms = int(time.time() * 1000)
         cache_age_ms = now_ms - self.loaded_at_ms
         should_refresh = (
@@ -54,6 +76,9 @@ class RuntimeDataCache:
 
         if should_refresh:
             try:
+                # Dữ liệu runtime là snapshot tổng hợp của courses, enrollments,
+                # progress và các nguồn liên quan, được nạp một lần rồi tái sử dụng
+                # cho nhiều request suy luận liên tiếp.
                 data, source_name = load_runtime_data(
                     source=self.configured_source,
                     seed_data_path=resolve_seed_data_path(),
@@ -64,6 +89,8 @@ class RuntimeDataCache:
                 self.last_error = ""
             except Exception as exc:
                 self.last_error = str(exc)
+                # Nếu đã từng có cache hợp lệ thì giữ lại cache cũ để API tiếp tục phục vụ,
+                # tránh làm hỏng toàn bộ luồng recommendation chỉ vì một lần refresh lỗi.
                 if self.payload is None:
                     raise
 
@@ -72,7 +99,14 @@ class RuntimeDataCache:
 
 runtime_cache = RuntimeDataCache()
 registry = ModelRegistry()
+# `model` là instance phục vụ suy luận đang sống trong memory của process hiện tại.
 model = RecommendationModel()
+# `model_state` là trạng thái runtime đang được endpoint health/model-ops trả ra.
+# Nó không phải artifact model, mà là ảnh chụp nhanh cho biết:
+# - model version nào đang được nạp,
+# - nạp thành công hay thất bại,
+# - artifact đang ở định dạng nào,
+# - có lỗi gì khi load hay không.
 model_state: Dict[str, object] = {
     "versionId": "",
     "status": "NOT_LOADED",
@@ -84,7 +118,12 @@ model_state: Dict[str, object] = {
 
 
 def _parse_bool(value, default: bool = False) -> bool:
-    """Phan tich cac gia tri true/false linh hoat tu JSON hoac env."""
+    """Phân tích giá trị boolean từ JSON hoặc biến môi trường.
+
+    Hàm này cho phép backend chấp nhận nhiều kiểu biểu diễn như:
+    `true/false`, `1/0`, `yes/no`, `on/off`, giúp endpoint quản trị
+    bền hơn khi nhận dữ liệu từ nhiều nguồn gọi khác nhau.
+    """
     if value is None:
         return default
     if isinstance(value, bool):
@@ -93,12 +132,16 @@ def _parse_bool(value, default: bool = False) -> bool:
 
 
 def _admin_token() -> str:
-    """Doc admin token noi bo dung cho cac endpoint quan ly model."""
+    """Đọc admin token nội bộ dùng để bảo vệ endpoint quản lý model."""
     return str(os.getenv("MODEL_ADMIN_TOKEN", "")).strip()
 
 
 def _request_admin_token() -> str:
-    """Lay admin token tu cac header duoc ho tro."""
+    """Lấy admin token từ request header.
+
+    Backend hỗ trợ nhiều tên header để thuận tiện khi gọi từ các môi trường
+    hoặc công cụ quản trị khác nhau.
+    """
     return str(
         request.headers.get("X-Model-Admin-Token")
         or request.headers.get("X-Admin-Token")
@@ -107,7 +150,11 @@ def _request_admin_token() -> str:
 
 
 def _authorize_admin_request():
-    """Bao ve cac endpoint quan ly model khoi caller cong khai."""
+    """Bảo vệ endpoint quản trị model khỏi caller công khai.
+
+    Chỉ các request có admin token hợp lệ mới được reload model, retrain
+    hoặc truy cập các chức năng model-ops nhạy cảm.
+    """
     expected = _admin_token()
     if not expected:
         return False, jsonify({"error": "MODEL_ADMIN_TOKEN is not configured"}), 503
@@ -117,9 +164,20 @@ def _authorize_admin_request():
 
 
 def _load_active_model() -> bool:
-    """Nap artifact active hien tai vao model instance trong bo nho."""
+    """Nạp artifact model active hiện tại vào instance `model` trong bộ nhớ.
+
+    Luồng nạp model được tách riêng thành một hàm để có thể tái sử dụng ở:
+    - thời điểm backend khởi động,
+    - endpoint `/model/reload`,
+    - sau khi retrain thành công.
+
+    Hàm này cũng cập nhật `model_state` để các endpoint giám sát có thể biết
+    backend đang chạy bằng model nào, trạng thái gì và có lỗi hay không.
+    """
     bundle = registry.get_active_model_bundle()
     if not bundle:
+        # Không có artifact không có nghĩa backend phải dừng;
+        # service vẫn có thể chạy ở chế độ heuristic-only.
         model_state.update({
             "versionId": "",
             "status": "HEURISTIC_ONLY",
@@ -133,6 +191,9 @@ def _load_active_model() -> bool:
     metadata = bundle.get("metadata") or {}
     artifact_format = str(bundle.get("artifact_format") or "pickle").lower()
     try:
+        # Registry có thể trả về:
+        # - bytes đã tải và ghép lại từ Firestore chunk storage,
+        # - hoặc đường dẫn local tới artifact đã cache trên đĩa.
         if bundle.get("artifact_bytes") is not None:
             model.load_bytes(bundle["artifact_bytes"])
         else:
@@ -157,7 +218,12 @@ def _load_active_model() -> bool:
 
 
 def _build_candidate_courses(runtime_data: dict, candidate_course_ids: list, category_id: Optional[str]) -> list:
-    """Bien danh sach candidate ID trong request thanh payload course that."""
+    """Biến danh sách candidate course ID thành payload course đầy đủ.
+
+    App chỉ gửi lên danh sách ID ứng viên, còn backend sẽ tự ánh xạ sang
+    dữ liệu course thật từ snapshot runtime để phục vụ bước scoring.
+    Nếu request có `category_id`, hàm này cũng lọc lại candidate theo danh mục.
+    """
     course_by_id = build_course_index(runtime_data)
     courses = []
     for course_id in candidate_course_ids:
@@ -171,7 +237,13 @@ def _build_candidate_courses(runtime_data: dict, candidate_course_ids: list, cat
 
 
 def _build_runtime_user_profile(runtime_data: dict, user_id: str) -> tuple[dict, list[str]]:
-    """Xay dung profile hoc vien va lich su course positive cho suy luan."""
+    """Xây dựng hồ sơ học tập runtime của user cho bước suy luận.
+
+    Kết quả trả về gồm:
+    - `user_profile`: profile đã tổng hợp các tín hiệu sở thích,
+    - `positive_course_ids`: các course có tín hiệu tương tác dương để model
+      biết khóa nào user đã thực sự quan tâm hoặc từng học.
+    """
     course_by_id = build_course_index(runtime_data)
     interactions_by_user = build_positive_interactions(runtime_data, course_by_id)
     progress_by_user = build_progress_by_user(runtime_data)
@@ -186,7 +258,11 @@ def _build_runtime_user_profile(runtime_data: dict, user_id: str) -> tuple[dict,
 
 
 def _log_prediction(payload: Dict) -> None:
-    """Ghi log prediction theo kieu best-effort, khong lam hong luong API."""
+    """Ghi prediction log theo kiểu best-effort, không làm hỏng luồng API.
+
+    Nếu ghi log lỗi, request recommendation vẫn được xem là thành công.
+    Điều này giúp telemetry hữu ích nhưng không trở thành điểm single point of failure.
+    """
     try:
         registry.log_prediction(payload)
     except Exception:
@@ -201,7 +277,14 @@ def _build_heuristic_fallback_response(
     source: str,
     request_started_at: int,
 ) -> Dict:
-    """Tra ve response recommendation ngay ca khi model chinh gap loi."""
+    """Tạo response fallback khi pipeline model chính gặp lỗi.
+
+    Thay vì trả lỗi ngay cho app, backend sẽ dựng lại profile user, lấy candidate
+    từ cache runtime và dùng một `RecommendationModel` mới ở chế độ heuristic-only
+    để tính điểm. Nhờ đó home screen vẫn có recommendation thay vì bị rỗng.
+    """
+    # Fallback này tải lại user profile và candidate courses từ runtime cache,
+    # sau đó dùng một RecommendationModel mới ở chế độ heuristic-only để score.
     runtime_data = runtime_cache.get(force_refresh=False)
     user_profile, positive_course_ids = _build_runtime_user_profile(runtime_data, user_id)
     fallback_model = RecommendationModel()
@@ -233,8 +316,10 @@ def _build_heuristic_fallback_response(
     return response
 
 
+# Khi service khởi động, thử nạp ngay model active để request đầu tiên không phải chờ.
 _load_active_model()
 try:
+    # Đồng thời warm-up dữ liệu runtime để endpoint recommendation có cache sẵn.
     runtime_cache.get(force_refresh=True)
 except Exception as exc:
     runtime_cache.last_error = str(exc)
@@ -242,7 +327,14 @@ except Exception as exc:
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    """Health check kem metadata trang thai serving."""
+    """Health check kèm metadata về trạng thái serving hiện tại.
+
+    Endpoint này không chỉ trả `status=ok` mà còn cho biết:
+    - model nào đang được nạp,
+    - có đang load model thành công hay không,
+    - dữ liệu runtime được lấy từ nguồn nào,
+    - cache runtime được nạp lần cuối khi nào.
+    """
     return jsonify({
         "status": "ok",
         "message": "ML Recommendation Backend is running",
@@ -257,7 +349,7 @@ def health_check():
 
 @app.route("/model/active", methods=["GET"])
 def active_model():
-    """Tra ve manifest model active va runtime state hien tai."""
+    """Trả về manifest của model active cùng runtime state hiện tại."""
     bundle = registry.get_active_model_bundle()
     metadata = (bundle or {}).get("metadata") or {}
     response = {
@@ -271,7 +363,7 @@ def active_model():
 
 @app.route("/model/versions", methods=["GET"])
 def list_model_versions():
-    """Liet ke cac version model gan day cho admin kiem tra."""
+    """Liệt kê các version model gần đây để admin kiểm tra và đối chiếu."""
     limit = int(request.args.get("limit", 20) or 20)
     return jsonify({
         "versions": registry.list_model_versions(limit=limit),
@@ -280,7 +372,11 @@ def list_model_versions():
 
 @app.route("/metrics/recommendation", methods=["GET"])
 def get_recommendation_metrics():
-    """Tra ve metric cua version model dang active."""
+    """Trả về metric của version model đang active.
+
+    Đây là endpoint thuận tiện để theo dõi nhanh chất lượng mô hình hiện tại
+    mà không cần mở trực tiếp registry hoặc artifact manifest.
+    """
     active_model_metadata = registry.get_active_model_metadata() or {}
     return jsonify({
         "modelVersion": active_model_metadata.get("id") or model_state.get("versionId", ""),
@@ -291,7 +387,13 @@ def get_recommendation_metrics():
 
 @app.route("/model/reload", methods=["POST"])
 def reload_model():
-    """Nap lai artifact model active va co the refresh du lieu runtime."""
+    """Nạp lại artifact model active và tùy chọn refresh dữ liệu runtime.
+
+    Endpoint này hữu ích khi:
+    - vừa promote model mới lên registry,
+    - muốn ép backend đọc lại artifact đang active,
+    - muốn đồng thời refresh snapshot dữ liệu runtime.
+    """
     authorized, response, status = _authorize_admin_request()
     if not authorized:
         return response, status
@@ -309,7 +411,11 @@ def reload_model():
 
 @app.route("/jobs/retrain", methods=["POST"])
 def retrain_job():
-    """Kich hoat mot lan retrain dong bo tu admin surface."""
+    """Kích hoạt một lần retrain đồng bộ từ admin surface.
+
+    Request này sẽ tạo training job record, chạy workflow train/register,
+    sau đó cập nhật lại trạng thái job để admin có thể theo dõi tiến trình.
+    """
     authorized, response, status = _authorize_admin_request()
     if not authorized:
         return response, status
@@ -328,6 +434,8 @@ def retrain_job():
     })
 
     try:
+        # Train và register được gom thành một workflow:
+        # tạo dataset -> train -> đánh giá -> lưu artifact -> có thể activate.
         report = train_and_register(
             data_source=data_source,
             window_days=window_days,
@@ -363,7 +471,7 @@ def retrain_job():
 
 @app.route("/jobs/retrain/<job_id>", methods=["GET"])
 def get_retrain_job(job_id: str):
-    """Doc trang thai cua mot training job."""
+    """Đọc trạng thái chi tiết của một training job theo ID."""
     job = registry.get_training_job(job_id)
     if not job:
         return jsonify({"error": "Training job not found"}), 404
@@ -372,7 +480,13 @@ def get_retrain_job(job_id: str):
 
 @app.route("/recommendation-feedback", methods=["POST"])
 def recommendation_feedback():
-    """Luu feedback event online phat sinh tu app hoac payment flow."""
+    """Lưu feedback event online phát sinh từ app hoặc payment flow.
+
+    Đây là đầu vào quan trọng cho các bài toán:
+    - đo CTR / engagement của recommendation,
+    - huấn luyện lại mô hình ở các vòng sau,
+    - đối chiếu prediction nào đã dẫn tới hành vi thật của người dùng.
+    """
     payload = request.get_json(silent=True) or {}
     event_type = str(payload.get("eventType") or "").strip().upper()
     user_id = str(payload.get("userId") or "").strip()
@@ -398,7 +512,15 @@ def recommendation_feedback():
 
 @app.route("/recommendations", methods=["POST"])
 def get_recommendations():
-    """Endpoint suy luan chinh duoc lop recommendation cua Android goi toi."""
+    """Endpoint suy luận chính được lớp recommendation của Android gọi tới.
+
+    Request đầu vào gồm `userId`, `candidateCourseIds`, `limit` và tùy chọn `categoryId`.
+    Backend sẽ:
+    1. dựng profile user từ runtime data,
+    2. ánh xạ candidate ID sang course payload thật,
+    3. tính score bằng model hiện tại,
+    4. trả lại danh sách course đã xếp hạng cùng metadata vận hành.
+    """
     request_started_at = int(time.time() * 1000)
     data = request.get_json(silent=True) or {}
     user_id = str(data.get("userId") or "").strip()
@@ -415,6 +537,8 @@ def get_recommendations():
             return jsonify({"error": "candidateCourseIds is required"}), 400
 
         runtime_data = runtime_cache.get(force_refresh=False)
+        # Profile user và candidate courses được xây ngay tại backend
+        # để model chỉ tập trung vào scoring, không phụ thuộc app phải gửi quá nhiều state.
         user_profile, positive_course_ids = _build_runtime_user_profile(runtime_data, user_id)
         candidate_courses = _build_candidate_courses(runtime_data, candidate_course_ids, category_id)
 
@@ -427,6 +551,8 @@ def get_recommendations():
                 "dataSource": runtime_cache.source_name,
             }), 200
 
+        # Recommendation response luôn kèm metadata vận hành để app và admin biết
+        # version model nào đang chạy, có fallback hay không, và latency request.
         scores = model.predict_scores(user_profile, candidate_courses, positive_course_ids)
         recommendations = [
             {"courseId": course_id, "score": float(score)}
@@ -456,6 +582,8 @@ def get_recommendations():
         return jsonify(response), 200
     except Exception as exc:
         try:
+            # Nếu scoring pipeline lỗi giữa đường, API vẫn cố trả recommendation
+            # bằng heuristic để tránh làm home screen của app bị rỗng.
             if user_id and candidate_course_ids:
                 fallback_response = _build_heuristic_fallback_response(
                     user_id=user_id,

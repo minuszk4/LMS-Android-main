@@ -1,8 +1,11 @@
-"""Tien ich nap du lieu runtime va du lieu huan luyen cho API recommendation.
+"""Tiện ích nạp dữ liệu runtime và dữ liệu huấn luyện cho API recommendation.
 
-Service recommendation co the chay theo hai nguon:
-- snapshot seed local cho demo va phat trien offline,
-- Firestore cho moi truong muon su dung du lieu thuc te.
+Service recommendation của hệ thống có thể chạy theo hai nguồn:
+- snapshot seed local để phục vụ demo, test nhanh và phát triển offline,
+- Firestore để dùng dữ liệu thực tế của ứng dụng trong môi trường chạy thật.
+
+Module này gom toàn bộ logic đọc dữ liệu đầu vào để các phần train model,
+refresh cache và suy luận runtime không phải tự xử lý từng nguồn riêng lẻ.
 """
 
 import json
@@ -14,7 +17,11 @@ from typing import Dict, Iterable, List, Tuple
 from firebase_utils import get_firestore_client, is_firebase_configured
 
 
+# Đường dẫn mặc định tới snapshot dữ liệu seed được lưu trong repo.
+# File này thường dùng khi chưa cấu hình Firebase hoặc khi muốn tái lập dữ liệu demo ổn định.
 DEFAULT_SEED_DATA_PATH = Path(__file__).resolve().parent.parent / "scripts" / "seed" / "seed_data.json"
+# Danh sách collection tối thiểu cần cho pipeline recommendation.
+# Đây là các nguồn tín hiệu chính để tạo user profile, lịch sử tương tác và quality signals của course.
 DEFAULT_COLLECTIONS = (
     "users",
     "courses",
@@ -30,13 +37,23 @@ DEFAULT_COLLECTIONS = (
 
 
 def load_seed_data(seed_data_path: Path = DEFAULT_SEED_DATA_PATH) -> dict:
-    """Nap file JSON seed local dung cho demo hoac train offline."""
+    """Nạp file JSON seed local dùng cho demo hoặc train offline.
+
+    Hàm này phù hợp cho các môi trường không có Firebase, CI, hoặc khi muốn
+    tái sử dụng một snapshot dữ liệu cố định để kiểm thử và so sánh model.
+    """
     with seed_data_path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def load_firestore_data(collection_names: Iterable[str] = DEFAULT_COLLECTIONS) -> dict:
-    """Doc cac collection runtime can thiet cho pipeline recommendation."""
+    """Đọc các collection runtime cần thiết cho pipeline recommendation.
+
+    Mỗi collection được stream toàn bộ document từ Firestore rồi chuẩn hóa lại
+    thành dict thuần Python. Hàm cũng đảm bảo bản ghi luôn có khóa định danh:
+    - `uid` cho collection `users`,
+    - `id` cho các collection còn lại.
+    """
     db = get_firestore_client()
     if db is None:
         raise RuntimeError("Firebase is not configured for ml-backend")
@@ -46,6 +63,8 @@ def load_firestore_data(collection_names: Iterable[str] = DEFAULT_COLLECTIONS) -
         documents = []
         for snapshot in db.collection(collection_name).stream():
             payload = snapshot.to_dict() or {}
+            # Chuẩn hóa khóa định danh để các bước downstream không phải phụ thuộc
+            # vào metadata riêng của Firestore snapshot.
             if collection_name == "users":
                 payload.setdefault("uid", snapshot.id)
             else:
@@ -59,13 +78,21 @@ def load_runtime_data(
     source: str = "auto",
     seed_data_path: Path = DEFAULT_SEED_DATA_PATH,
 ) -> Tuple[dict, str]:
-    """Chon nguon du lieu uu tien va fallback an toan khi can."""
+    """Chọn nguồn dữ liệu ưu tiên và fallback an toàn khi cần.
+
+    Quy tắc:
+    - nếu caller yêu cầu `firestore` thì ưu tiên Firestore và chỉ fallback khi ở chế độ `auto`,
+    - nếu chọn `auto` thì thử Firestore trước, lỗi sẽ quay về seed local,
+    - nếu không có Firebase thì dùng seed local ngay từ đầu.
+    """
     preferred = (source or "auto").strip().lower()
 
     if preferred in {"firestore", "auto"} and is_firebase_configured():
         try:
             return load_firestore_data(), "FIRESTORE"
         except Exception:
+            # Với `auto`, lỗi Firestore không được làm hỏng toàn bộ backend.
+            # Khi đó service vẫn có thể tiếp tục bằng seed snapshot.
             if preferred == "firestore":
                 raise
 
@@ -73,7 +100,11 @@ def load_runtime_data(
 
 
 def resolve_seed_data_path() -> Path:
-    """Xac dinh duong dan seed snapshot tu env hoac gia tri mac dinh."""
+    """Xác định đường dẫn seed snapshot từ biến môi trường hoặc giá trị mặc định.
+
+    Cho phép backend override đường dẫn dữ liệu seed mà không cần sửa code,
+    rất hữu ích khi chạy nhiều bộ dữ liệu mẫu khác nhau.
+    """
     raw_path = str(os.getenv("SEED_DATA_PATH", "")).strip()
     if raw_path:
         return Path(raw_path)
@@ -81,7 +112,12 @@ def resolve_seed_data_path() -> Path:
 
 
 def filter_data_by_window(data: dict, window_days: int) -> dict:
-    """Loc lai cac ban ghi tuong tac gan day cho train theo cua so thoi gian."""
+    """Lọc lại các bản ghi tương tác gần đây theo cửa sổ thời gian.
+
+    Mục tiêu của hàm là giảm ảnh hưởng của dữ liệu quá cũ khi retrain model.
+    Chỉ những collection mang ý nghĩa hành vi theo thời gian mới bị lọc;
+    các collection nền như `users` hoặc `courses` sẽ được giữ nguyên.
+    """
     if window_days <= 0:
         return data
 
@@ -101,6 +137,7 @@ def filter_data_by_window(data: dict, window_days: int) -> dict:
     for collection_name, records in data.items():
         fields = window_fields.get(collection_name)
         if not fields:
+            # Không có trường thời gian phù hợp thì giữ nguyên collection.
             filtered[collection_name] = list(records)
             continue
 
@@ -114,7 +151,10 @@ def filter_data_by_window(data: dict, window_days: int) -> dict:
                 try:
                     timestamps.append(int(raw_value))
                 except (TypeError, ValueError):
+                    # Bỏ qua giá trị timestamp lỗi định dạng thay vì làm hỏng cả batch.
                     continue
+            # Nếu bản ghi không có timestamp hợp lệ nào thì giữ lại,
+            # tránh vô tình làm mất dữ liệu vì thiếu field ở snapshot cũ.
             if not timestamps or max(timestamps) >= cutoff_ms:
                 filtered_records.append(record)
         filtered[collection_name] = filtered_records
