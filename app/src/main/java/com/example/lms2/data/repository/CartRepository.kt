@@ -31,16 +31,23 @@ class CartRepository {
     /**
      * Lấy dữ liệu hiện có hoặc tạo mới nếu tài nguyên chưa tồn tại.
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
+     * Ví dụ: Lấy giỏ hàng đang hoạt động của người dùng. Nếu giỏ hàng chưa tồn tại, tạo mới một giỏ hàng với trạng thái "ACTIVE" và trả về. Điều này giúp đảm bảo rằng người dùng luôn có một giỏ hàng sẵn sàng để thêm khóa học vào mà không cần phải lo lắng về việc tạo giỏ hàng trước đó đã tồn tại hay chưa. Ngoài ra, cũng có thể kiểm tra xem giỏ hàng hiện tại có đang ở trạng thái "ACTIVE" hay không, nếu không thì có thể tạo mới hoặc trả về lỗi tùy theo yêu cầu nghiệp vụ.
      */
 
     suspend fun getOrCreateActiveCart(userId: String): ResultState<Cart> {
+        // Security hardening: validate user identity and input before performing any data operations. This helps prevent unauthorized access and ensures that the cart retrieval or creation process is initiated with valid data, reducing the risk of errors and potential abuse. In this case, we check if the `userId` is valid before proceeding with any operations related to Firestore.
+        // Kiểm tra xem `userId` có hợp lệ hay không (không được để trống). Nếu không hợp lệ, trả về lỗi ngay lập tức để tránh thực hiện các thao tác không cần thiết với Firestore.
         if (userId.isBlank()) return ResultState.Error("Thiếu thông tin người dùng")
 
         return try {
+            // Lấy tham chiếu đến document giỏ hàng của người dùng dựa trên `userId`. Sau đó, lấy snapshot của document này để kiểm tra xem giỏ hàng đã tồn tại hay chưa. Nếu đã tồn tại, chuyển đổi snapshot thành đối tượng `Cart` và trả về. Nếu chưa tồn tại, tạo mới một đối tượng `Cart` với trạng thái "ACTIVE" và lưu vào Firestore trước khi trả về. Điều này đảm bảo rằng người dùng luôn có một giỏ hàng sẵn sàng để thêm khóa học vào mà không cần phải lo lắng về việc tạo giỏ hàng trước đó đã tồn tại hay chưa.
+            // Ngoài ra, cũng có thể kiểm tra xem giỏ hàng hiện tại có đang ở trạng thái "ACTIVE" hay không. Nếu giỏ hàng đã tồn tại nhưng không ở trạng thái "ACTIVE", có thể tạo mới một giỏ hàng mới hoặc trả về lỗi tùy theo yêu cầu nghiệp vụ. Trong trường hợp này, chúng ta sẽ tạo mới một giỏ hàng mới nếu giỏ hàng hiện tại không ở trạng thái "ACTIVE".
             val cartRef = cartsCollection.document(buildCartId(userId))
             val snapshot = cartRef.get().await()
             val now = System.currentTimeMillis()
-
+            // Nếu snapshot tồn tại, chuyển đổi thành đối tượng `Cart` và cập nhật trường `updatedAt` để đảm bảo rằng thông tin giỏ hàng luôn được cập nhật mới nhất. Nếu snapshot không tồn tại, tạo mới một đối tượng `Cart` với trạng thái "ACTIVE" và lưu vào Firestore. Sau đó, trả về đối tượng `Cart` đã được tạo hoặc lấy từ Firestore.
+            // Cập nhật trường `updatedAt` mỗi khi lấy hoặc tạo giỏ hàng để đảm bảo rằng thông tin giỏ hàng luôn được cập nhật mới nhất. Điều này giúp theo dõi được thời điểm cuối cùng mà giỏ hàng được truy cập hoặc thay đổi, đồng thời hỗ trợ các tính năng liên quan đến việc tự động xóa giỏ hàng cũ hoặc gửi thông báo nhắc nhở người dùng về giỏ hàng của họ.
+            
             val cart = if (snapshot.exists()) {
                 snapshot.toObject(Cart::class.java)?.copy(updatedAt = now)
                     ?: Cart(
@@ -63,7 +70,7 @@ class CartRepository {
                     updatedAt = now
                 )
             }
-
+            // Sử dụng `set()` với `await()` để đảm bảo rằng thao tác lưu giỏ hàng đã hoàn thành trước khi tiếp tục, đồng thời xử lý lỗi nếu có xảy ra trong quá trình này.
             cartRef.set(cart).await()
             ResultState.Success(cart)
         } catch (e: Exception) {

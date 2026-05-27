@@ -432,6 +432,8 @@ class CourseRepository {
 
     suspend fun updatePublishStatus(courseId: String, isPublished: Boolean): ResultState<Unit> {
         return try {
+            // Cập nhật trường `isPublished` của khóa học trong Firestore, đồng thời cập nhật `updatedAt` để đảm bảo thứ tự sắp xếp và kích hoạt cơ chế cache invalidation dựa trên thời gian cập nhật
+            // Sau khi cập nhật, cần làm mới cache liên quan đến danh sách khóa học đã xuất bản và danh sách khóa học của admin để đảm bảo dữ liệu hiển thị ở tầng giao diện là mới nhất
             coursesCollection
                 .document(courseId)
                 .update(
@@ -441,7 +443,7 @@ class CourseRepository {
                     )
                 )
                 .await()
-
+            // Nếu khóa học vừa được xuất bản, cần gửi thông báo đến tất cả học viên đã đăng ký khóa học để thông báo về việc khóa học đã sẵn sàng
             RepositoryCache.invalidateByPrefix(PUBLISHED_COURSE_CACHE_PREFIX)
             RepositoryCache.invalidateByPrefix(ADMIN_COURSE_CACHE_PREFIX)
             ResultState.Success(Unit)

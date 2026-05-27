@@ -379,7 +379,6 @@ class AuthRepository {
      * Thực hiện phần xử lý chính của luồng nghiệp vụ hoặc giao diện tương ứng.
      * Hàm này thường làm việc với Firestore hoặc API ngoài và trả kết quả về dạng `ResultState` cho tầng gọi phía trên.
      */
-
     suspend fun approveInstructorApplication(targetUid: String, adminUid: String): ResultState<Unit> {
         return try {
             val userRef = firestore.collection("users").document(targetUid)
@@ -393,7 +392,9 @@ class AuthRepository {
                 if (user.instructorRequestStatus != InstructorApplicationStatus.PENDING) {
                     throw IllegalStateException("Đơn đăng ký không còn ở trạng thái chờ duyệt")
                 }
-
+                // Chuẩn bị dữ liệu cho document giảng viên mới dựa trên thông tin từ đơn đăng ký
+                // Sử dụng `SetOptions.merge()` khi tạo document giảng viên để tránh ghi đè lên các trường khác nếu document đã tồn tại (trường hợp admin duyệt lại đơn của giảng viên cũ)
+                // Dữ liệu này sẽ được dùng để tạo hoặc cập nhật document trong collection `instructors` tương ứng với `uid` của người dùng
                 val instructorData = mutableMapOf<String, Any>("uid" to targetUid)
                 user.instructorApplication?.let { app ->
                     if (app.expertise.isNotBlank()) instructorData["expertise"] = app.expertise
@@ -405,7 +406,7 @@ class AuthRepository {
                     if (app.portfolioUrl.isNotBlank()) instructorData["portfolioUrl"] = app.portfolioUrl
                     if (app.bio.isNotBlank()) instructorData["bio"] = app.bio
                 }
-
+                // Cập nhật đồng thời role của người dùng thành INSTRUCTOR và tạo document giảng viên mới trong collection `instructors`
                 transaction.set(
                     userRef,
                     mapOf(
@@ -424,7 +425,7 @@ class AuthRepository {
                     SetOptions.merge()
                 )
             }.await()
-
+            // Sau khi duyệt xong, cần làm mới cache liên quan đến danh sách chờ duyệt và danh sách người dùng để đảm bảo dữ liệu hiển thị ở tầng giao diện là mới nhất
             RepositoryCache.invalidateByPrefix(PENDING_INSTRUCTOR_CACHE_PREFIX)
             RepositoryCache.invalidateByPrefix(USERS_CACHE_PREFIX)
 
@@ -443,7 +444,7 @@ class AuthRepository {
         return try {
             val userRef = firestore.collection("users").document(targetUid)
             val rejectReason = reason.trim().ifBlank { "Không đáp ứng điều kiện hiện tại" }
-
+            // Dùng transaction để đảm bảo việc kiểm tra trạng thái đơn và cập nhật đồng thời các trường liên quan diễn ra trên cùng một snapshot dữ liệu, tránh tình
             firestore.runTransaction { transaction ->
                 val userSnapshot = transaction.get(userRef)
                 val user = userSnapshot.toObject(User::class.java)
@@ -452,7 +453,8 @@ class AuthRepository {
                 if (user.instructorRequestStatus != InstructorApplicationStatus.PENDING) {
                     throw IllegalStateException("Đơn đăng ký không còn ở trạng thái chờ duyệt")
                 }
-
+                // Cập nhật trạng thái đơn đăng ký thành REJECTED và lưu lại lý do từ chối cùng thông tin người admin đã duyệt
+                // Sử dụng `SetOptions.merge()` để chỉ cập nhật các trường liên quan đến xét duyệt giảng viên mà không làm ảnh hưởng đến các dữ liệu khác của người dùng
                 transaction.set(
                     userRef,
                     mapOf(
@@ -464,7 +466,7 @@ class AuthRepository {
                     SetOptions.merge()
                 )
             }.await()
-
+            // Sau khi từ chối xong, cần làm mới cache liên quan đến danh sách chờ duyệt và danh sách người dùng để đảm bảo dữ liệu hiển thị ở tầng giao diện là mới nhất
             RepositoryCache.invalidateByPrefix(PENDING_INSTRUCTOR_CACHE_PREFIX)
             RepositoryCache.invalidateByPrefix(USERS_CACHE_PREFIX)
 
@@ -567,11 +569,12 @@ class AuthRepository {
 
     suspend fun setUserActive(uid: String, isActive: Boolean): ResultState<Unit> {
         return try {
+            // Cập nhật trường `isActive` của người dùng trong Firestore để kích hoạt hoặc tạm khóa tài khoản
             firestore.collection("users")
                 .document(uid)
                 .set(mapOf("isActive" to isActive), SetOptions.merge())
                 .await()
-
+            // Sau khi cập nhật xong, cần làm mới cache liên quan đến danh sách người dùng để đảm bảo dữ liệu hiển thị ở tầng giao diện là mới nhất
             RepositoryCache.invalidateByPrefix(USERS_CACHE_PREFIX)
 
             ResultState.Success(Unit)
@@ -592,6 +595,7 @@ class AuthRepository {
         fullName: String
     ): ResultState<Unit> {
         return try {
+            // Chuẩn hóa dữ liệu đầu vào để tránh lỗi do khoảng trắng thừa hoặc dữ liệu không hợp lệ
             val sanitizedEmail = email.trim()
             val sanitizedName = fullName.trim()
 
@@ -606,28 +610,28 @@ class AuthRepository {
             if (password.length < 6) {
                 return ResultState.Error("Mật khẩu phải có ít nhất 6 ký tự")
             }
-
+            // Kiểm tra quyền admin của người thực hiện thao tác trước khi tiếp tục tạo tài khoản giảng viên mới
             val adminRole = getUserRole(adminUid)
             if (adminRole != UserRole.ADMIN) {
                 return ResultState.Error("Chỉ admin mới có quyền tạo tài khoản giảng viên")
             }
-
+            // Sử dụng Firebase Authentication REST API để tạo tài khoản người dùng mới với email và mật khẩu, sau đó lấy `uid` của tài khoản vừa tạo để tiếp tục các bước xử lý tiếp theo
             val apiKey = auth.app.options.apiKey.orEmpty().trim()
             if (apiKey.isBlank()) {
                 return ResultState.Error("Thiếu Firebase API key, không thể tạo tài khoản")
             }
-
+            // Endpoint này là URL chuẩn của Firebase Authentication REST API để tạo user mới, trong đó `key` là tham số bắt buộc để xác thực yêu cầu với Firebase
             val endpoint = "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$apiKey"
             val payload = JSONObject()
                 .put("email", sanitizedEmail)
                 .put("password", password)
                 .put("returnSecureToken", false)
-
+            // Tạo request POST với payload JSON để gửi đến Firebase Authentication REST API và nhận về phản hồi chứa `uid` của tài khoản mới tạo
             val request = Request.Builder()
                 .url(endpoint)
                 .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .build()
-
+            // Thực hiện yêu cầu HTTP trong context IO để tránh block thread chính, sau đó xử lý phản hồi để lấy `uid` hoặc lỗi nếu có
             val userUid = withContext(Dispatchers.IO) {
                 httpClient.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string().orEmpty()
@@ -648,11 +652,11 @@ class AuthRepository {
                     localId
                 }
             }
-
+            // Sau khi có `uid` của tài khoản mới, tiếp tục tạo document trong Firestore để lưu thông tin role, họ tên và trạng thái xét duyệt giảng viên. Sử dụng batch để đảm bảo tính nguyên tử giữa việc tạo user và document giảng viên
             firestore.runBatch { batch ->
                 val userRef = firestore.collection("users").document(userUid)
                 val instructorRef = firestore.collection("instructors").document(userUid)
-
+                // Dữ liệu này sẽ được dùng để tạo document người dùng mới với role INSTRUCTOR và trạng thái xét duyệt đã được phê duyệt, đồng thời tạo document giảng viên mới trong collection `instructors` với thông tin cơ bản
                 batch.set(
                     userRef,
                     User(
@@ -667,14 +671,14 @@ class AuthRepository {
                     ),
                     SetOptions.merge()
                 )
-
+                // Sử dụng `SetOptions.merge()` khi tạo document giảng viên để tránh ghi đè lên các trường khác nếu document đã tồn tại (trường hợp admin tạo lại tài khoản cho giảng viên cũ)
                 batch.set(
                     instructorRef,
                     mapOf("uid" to userUid),
                     SetOptions.merge()
                 )
             }.await()
-
+            // Sau khi tạo xong, cần làm mới cache liên quan đến danh sách người dùng và danh sách chờ duyệt để đảm bảo dữ liệu hiển thị ở tầng giao diện là mới nhất
             RepositoryCache.invalidateByPrefix(USERS_CACHE_PREFIX)
             RepositoryCache.invalidateByPrefix(PENDING_INSTRUCTOR_CACHE_PREFIX)
 
